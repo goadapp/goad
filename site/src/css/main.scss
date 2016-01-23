@@ -37,12 +37,31 @@ body {
 
 // Results
 
-.test-results {
+.panel-results {
+  border-color: $gray-lighter;
+
+  .panel-heading {
+    color: $gray-darker;
+    background-color: $gray-lighter;
+    border-color: $gray-lighter;
+  }
+
   .panel-title {
     font-family: $font-family-monospace;
     font-size: 12px;
   }
+}
 
+@keyframes blink {
+  from, to {
+    color: transparent;
+  }
+  50% {
+    color: $gray-lighter;
+  }
+}
+
+.test-results {
   .panel-body {
     padding: 0;
   }
@@ -54,5 +73,10 @@ body {
     border-radius: 4px;
     background: $gray-dark;
     color: $gray-lighter;
+  }
+
+  .blinking-cursor {
+    color: $gray-lighter;
+    animation: 1s blink step-end infinite;
   }
 }

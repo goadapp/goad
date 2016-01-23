@@ -40,12 +40,12 @@ Status code distribution:
 
   render() {
     return (
-      <div className="panel panel-info test-results">
+      <div className="panel panel-results test-results">
         <div className="panel-heading">
           <h3 className="panel-title">$ goad -n 1000 -c 10 -m GET {this.props.url}</h3>
         </div>
         <div className="panel-body">
-          <pre>{this.results()}</pre>
+          <pre>{this.results()}<span className="blinking-cursor">▊</span></pre>
         </div>
       </div>
     );

@@ -4,7 +4,7 @@ import Results from './results.jsx';
 
 export default class App extends React.Component {
   render() {
-    if (false) {
+    if (true) {
       return (<Results url="https://example.invalid" />);
     } else {
       return (<Form />);
