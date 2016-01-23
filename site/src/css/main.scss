@@ -34,3 +34,25 @@ body {
 .container .text-muted {
   margin: 20px 0;
 }
+
+// Results
+
+.test-results {
+  .panel-title {
+    font-family: $font-family-monospace;
+    font-size: 12px;
+  }
+
+  .panel-body {
+    padding: 0;
+  }
+
+  pre {
+    font-size: 12px;
+    margin: 0;
+    border: 0;
+    border-radius: 4px;
+    background: $gray-dark;
+    color: $gray-lighter;
+  }
+}
