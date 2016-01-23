@@ -62,32 +62,39 @@ func fetch(client *http.Client, address string, requestcount int, ch chan sqsada
 		start := time.Now()
 		req, err := http.NewRequest("GET", address, nil)
 		req.Header.Add("User-Agent", "GOAD/0.1")
-
 		response, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("ERROR %s\n", err)
-			return
-		}
+		var status string
+		var elapsedFirstByte time.Duration
+		var elapsedLastByte time.Duration
+		var elapsed time.Duration
 		buf := []byte(" ")
-		_, err = response.Body.Read(buf)
-		elapsedFirstByte := time.Since(start)
-		_, err = ioutil.ReadAll(response.Body)
-		elapsedLastByte := time.Since(start)
 		if err != nil {
-			fmt.Printf("ERROR %s\n", err)
-			return
+			status = fmt.Sprintf("client.Do() failed: %s\n", err)
+		} else {
+			_, err = response.Body.Read(buf)
+			if err != nil {
+				status = fmt.Sprintf("reading first byte failed: %s\n", err)
+			}
+			elapsedFirstByte = time.Since(start)
+			_, err = ioutil.ReadAll(response.Body)
+			elapsedLastByte = time.Since(start)
+			if err != nil {
+				status = fmt.Sprintf("reading response body failed: %s\n", err)
+			} else {
+				status = "Success"
+			}
+			elapsed = time.Since(start)
 		}
-		elapsed := time.Since(start)
 		result := sqsadaptor.Result{
 			start.Format(time.RFC3339),
 			req.URL.Host,
-			"Fetch",
+			req.Method,
 			response.StatusCode,
 			elapsed.Nanoseconds(),
 			elapsedFirstByte.Nanoseconds(),
 			elapsedLastByte.Nanoseconds(),
 			len(buf),
-			"Finished",
+			status,
 		}
 		ch <- result
 	}
