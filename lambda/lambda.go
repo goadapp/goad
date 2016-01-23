@@ -117,7 +117,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			durationSeconds = 1
 		}
 		aggData := sqsadaptor.AggData{
-			requestsSoFar,
+			i,
 			0, // totalTimedOut
 			timeToFirstTotal / int64(i),
 			totBytesRead,
