@@ -21,7 +21,7 @@ type RegionsAggData struct {
 }
 
 // Aggregate listens for results and sends totals
-func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedRequests int) {
+func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedRequests uint) {
 	defer close(outChan)
 	data := RegionsAggData{make(map[string]AggData)}
 
