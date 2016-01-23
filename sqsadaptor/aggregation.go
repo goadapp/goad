@@ -52,13 +52,13 @@ func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedReques
 	for {
 		result := adaptor.Receive()
 		if result != nil {
-			regionData := data.Regions[result.Region]
-			if regionData.Region == "" {
+			regionData, ok := data.Regions[result.Region]
+			if !ok {
 				regionData.Statuses = make(map[string]int)
 				regionData.Region = result.Region
 			}
 			addResult(&regionData, result)
-
+			data.Regions[result.Region] = regionData
 			outChan <- data
 			timeoutStart = time.Now()
 		} else {
