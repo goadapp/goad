@@ -34,12 +34,8 @@ module.exports = {
         loader: 'imports?jQuery=jquery'
       },
       {
-        test: /\.(png|jpg|gif)$/,
-        loader: "file-loader?name=img/[name].[hash].[ext]"
-      },
-      {
-        test: /\.(eot|woff2?|ttf|otf|svg)$/,
-        loader: "file-loader?name=font/[name].[hash].[ext]"
+        test: /\.(png|jpg|gif|svg|eot|woff2?|ttf|otf|svg)$/,
+        loader: "file-loader?name=assets/[name].[hash].[ext]"
       },
       {
         test: /\.html\.(slm|slim)$/,
@@ -59,7 +55,7 @@ module.exports = {
       inject: "body"
     })
   ],
-  postcss: function () {
+  postcss: function() {
     return [autoprefixer, precss];
   }
 };
