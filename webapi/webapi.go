@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gophergala2016/goad"
 	"github.com/gophergala2016/goad/sqsadaptor"
 	"github.com/gorilla/websocket"
 )
@@ -69,9 +70,16 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 
 	resultChan := make(chan sqsadaptor.RegionsAggData)
 
-	// go startTest(url, concurrency, tot, timeout)
+	config := TestConfig{
+		url,
+		concurrency,
+		tot,
+		timeout,
+		"",
+	}
 
-	//	sqsadaptor.Aggregate(resultChan)
+	test := goad.NewTest(config)
+	resultChan := test.Start()
 
 	for {
 		result, more := <-resultChan
