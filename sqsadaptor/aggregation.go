@@ -22,18 +22,20 @@ type RegionsAggData struct {
 }
 
 func addResult(data *AggData, result *AggData) {
+	initialDataTot := data.TotalReqs
+	initialDataTot64 := int64(data.TotalReqs)
 	data.TotalReqs += result.TotalReqs
 	data.TotalTimedOut += result.TotalTimedOut
 	dataTot64 := int64(data.TotalReqs)
 	resultTot64 := int64(result.TotalReqs)
-	data.AveTimeToFirst = (data.AveTimeToFirst*dataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
+	data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
 	data.TotBytesRead += result.TotBytesRead
 
 	for key, value := range result.Statuses {
 		data.Statuses[key] += value
 	}
-	data.AveTimeForReq = (data.AveTimeForReq*dataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
-	data.AveReqPerSec = (data.AveReqPerSec*data.TotalReqs + result.AveReqPerSec*result.TotalReqs) / data.TotalReqs
+	data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
+	data.AveReqPerSec = (data.AveReqPerSec*initialDataTot + result.AveReqPerSec*result.TotalReqs) / data.TotalReqs
 	if result.Slowest > data.Slowest {
 		data.Slowest = result.Slowest
 	}
