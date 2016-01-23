@@ -1,0 +1,5 @@
+site/node_modules
+site/dist
+data/lambda.zip
+data/lambda/goad-lambda
+infrastructure/bindata.go
