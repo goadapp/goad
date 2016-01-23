@@ -18,7 +18,7 @@ func main() {
 		fmt.Printf("ERROR %s\n", err)
 		return
 	}
-	requestcount, err := strconv.Atoi(os.Args[3])
+	maxRequestCount, err := strconv.ParseInt(os.Args[3], 10, 64)
 	sqsurl := os.Args[4]
 	lambdainstance := os.Args[5]
 
@@ -29,40 +29,47 @@ func main() {
 	client := &http.Client{}
 	clientTimeout, _ := time.ParseDuration("1s")
 	client.Timeout = clientTimeout
-	fmt.Printf("Will spawn %d workers each making %d requests to %s\n", concurrencycount, requestcount, address)
-	runLoadTest(client, sqsurl, address, requestcount, concurrencycount, lambdainstance)
+	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
+	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, lambdainstance)
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, requestcount int, concurrencycount int, lambdainstance string) {
-	sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
+type Job struct{}
 
-	totalRequests := requestcount * concurrencycount
+func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int64, concurrencycount int, lambdainstance string) {
+	//sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
+	jobs := make(chan Job, totalRequests)
 	ch := make(chan sqsadaptor.Result, totalRequests)
 	var wg sync.WaitGroup
+	var requestsSoFar int64
+	for i := int64(0); i < totalRequests; i++ {
+		jobs <- Job{}
+	}
+	close(jobs)
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
-		go fetch(client, url, requestcount, ch, &wg, lambdainstance)
+		go fetch(client, url, totalRequests, &requestsSoFar, jobs, ch, &wg, lambdainstance)
 	}
 	fmt.Println("Waiting for results…")
 
-	completedRequests := 0
-	for completedRequests < totalRequests {
-		r := <-ch
-		completedRequests++
-		if completedRequests%10 == 0 {
-			fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(completedRequests)/float64(totalRequests))*100.0, completedRequests, totalRequests)
+	for requestsSoFar < totalRequests {
+		//r := <-ch
+		_ = <-ch
+		requestsSoFar++
+		if requestsSoFar%10 == 0 {
+			fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
 		}
-		sqsAdaptor.SendResult(r)
+		//sqsAdaptor.SendResult(r)
 	}
+	fmt.Printf("\nWaiting for workers…")
 	wg.Wait()
-	fmt.Printf("\nYay🎈\n")
+	fmt.Printf("\nYay🎈  - %d requests completed\n", requestsSoFar)
 
 }
 
-func fetch(client *http.Client, address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup, lambdainstance string) {
+func fetch(client *http.Client, address string, requestcount int64, requestsSoFar *int64, jobs <-chan Job, ch chan sqsadaptor.Result, wg *sync.WaitGroup, lambdainstance string) {
 	defer wg.Done()
-	fmt.Printf("Fetching %s %d times\n", address, requestcount)
-	for i := 0; i < requestcount; i++ {
+	fmt.Printf("Fetching %s\n", address)
+	for _ = range jobs {
 		start := time.Now()
 		req, err := http.NewRequest("GET", address, nil)
 		req.Header.Add("User-Agent", "GOAD/0.1")
