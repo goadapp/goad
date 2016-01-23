@@ -34,13 +34,13 @@ type DummyAdaptor struct {
 }
 
 // NewSQSAdaptor returns a new sqs adator object
-func NewSQSAdaptor(queueURL string) SQSAdaptor {
-	return SQSAdaptor{getClient(), queueURL}
+func NewSQSAdaptor(queueURL string) *SQSAdaptor {
+	return &SQSAdaptor{getClient(), queueURL}
 }
 
 // NewDummyAdaptor returns a new sqs adator object
-func NewDummyAdaptor(queueURL string) DummyAdaptor {
-	return DummyAdaptor{queueURL}
+func NewDummyAdaptor(queueURL string) *DummyAdaptor {
+	return &DummyAdaptor{queueURL}
 }
 
 func getClient() *sqs.SQS {
@@ -49,7 +49,7 @@ func getClient() *sqs.SQS {
 }
 
 // Receive a result, or timeout in 1 second
-func (adaptor SQSAdaptor) Receive() {
+func (adaptor SQSAdaptor) Receive() *Result {
 	params := &sqs.ReceiveMessageInput{
 		QueueUrl:            aws.String(adaptor.QueueURL),
 		MaxNumberOfMessages: aws.Int64(1),
@@ -60,11 +60,11 @@ func (adaptor SQSAdaptor) Receive() {
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
 
 	if len(resp.Messages) == 0 {
-		return
+		return nil
 	}
 
 	item := resp.Messages[0]
@@ -77,11 +77,28 @@ func (adaptor SQSAdaptor) Receive() {
 
 	if delerr != nil {
 		fmt.Println(err.Error())
-		return
+		return nil
 	}
+
+	result, jsonerr := resultFromJSON(*item.Body)
+	if jsonerr != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+
+	return &result
 }
 
-func messageJSON(result Result) (string, error) {
+func resultFromJSON(str string) (Result, error) {
+	var result Result
+	jsonerr := json.Unmarshal([]byte(str), &result)
+	if jsonerr != nil {
+		return result, jsonerr
+	}
+	return result, nil
+}
+
+func jsonFromResult(result Result) (string, error) {
 	data, jsonerr := json.Marshal(result)
 	if jsonerr != nil {
 		return "", jsonerr
@@ -91,7 +108,7 @@ func messageJSON(result Result) (string, error) {
 
 // SendResult adds a result to the queue
 func (adaptor SQSAdaptor) SendResult(result Result) {
-	str, jsonerr := messageJSON(result)
+	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)
 		return
@@ -110,7 +127,7 @@ func (adaptor SQSAdaptor) SendResult(result Result) {
 
 // SendResult prints the result
 func (adaptor DummyAdaptor) SendResult(result Result) {
-	str, jsonerr := messageJSON(result)
+	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)
 		return
