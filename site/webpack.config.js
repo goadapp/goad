@@ -6,6 +6,7 @@ var precss = require("precss");
 
 module.exports = {
   entry: [
+    "bootstrap-loader",
     "./src/js/main.js"
   ],
   output: {
@@ -21,21 +22,29 @@ module.exports = {
         include: __dirname + "/src"
       },
       {
+        test: /\.css$/,
+        loaders: [ 'style', 'css', 'postcss' ]
+      },
+      {
         test: /\.scss$/,
         loader: "style-loader!css-loader!sass-loader!postcss-loader"
       },
       {
-        test: /\.(png|jpg|gif)$/,
-        loader: "file-loader?name=img/[name].[hash].[ext]"
+        test: /bootstrap-sass\/assets\/javascripts\//,
+        loader: 'imports?jQuery=jquery'
       },
       {
-        test: /\.(eot|woff2?|ttf|otf|svg)$/,
-        loader: "file-loader?name=font/[name].[hash].[ext]"
+        test: /\.(png|jpg|gif|svg|eot|woff2?|ttf|otf|svg)$/,
+        loader: "file-loader?name=assets/[name].[hash].[ext]"
       },
       {
         test: /\.html\.(slm|slim)$/,
         loader: 'html!slm'
       },
+      {
+        test: require.resolve("jquery"),
+        loader: "imports?this=>window"
+      }
     ]
   },
   plugins: [
@@ -46,7 +55,7 @@ module.exports = {
       inject: "body"
     })
   ],
-  postcss: function () {
+  postcss: function() {
     return [autoprefixer, precss];
   }
 };
