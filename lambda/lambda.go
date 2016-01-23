@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gophergala2016/goad/lambda/sqsadaptor"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -18,21 +19,20 @@ func main() {
 		return
 	}
 	requestcount, err := strconv.Atoi(os.Args[3])
+	sqsurl := os.Args[4]
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
 		return
 	}
 	fmt.Printf("Will spawn %d workers each making %d requests to %s\n", concurrencycount, requestcount, address)
-	runLoadTest(address, requestcount, concurrencycount)
+	runLoadTest(sqsurl, address, requestcount, concurrencycount)
 }
 
-type RequestResult struct {
-	Elapsed int64
-}
+func runLoadTest(sqsurl string, url string, requestcount int, concurrencycount int) {
+	sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
 
-func runLoadTest(url string, requestcount int, concurrencycount int) {
 	totalRequests := requestcount * concurrencycount
-	ch := make(chan RequestResult, totalRequests)
+	ch := make(chan sqsadaptor.Result, totalRequests)
 	var wg sync.WaitGroup
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
@@ -42,16 +42,17 @@ func runLoadTest(url string, requestcount int, concurrencycount int) {
 
 	completedRequests := 0
 	for completedRequests < totalRequests {
-		_ = <-ch
+		r := <-ch
 		completedRequests++
 		fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(completedRequests)/float64(totalRequests))*100.0, completedRequests, totalRequests)
+		sqsAdaptor.SendResult(r)
 	}
 	wg.Wait()
 	fmt.Printf("\nYay🎈\n")
 
 }
 
-func fetch(address string, requestcount int, ch chan RequestResult, wg *sync.WaitGroup) {
+func fetch(address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fmt.Printf("Fetching %s %d times\n", address, requestcount)
 	for i := 0; i < requestcount; i++ {
@@ -66,10 +67,17 @@ func fetch(address string, requestcount int, ch chan RequestResult, wg *sync.Wai
 			fmt.Printf("ERROR %s\n", err)
 			return
 		}
-		//fmt.Printf("%s\n", string(contents))
 		elapsed := time.Since(start)
-		var result RequestResult
-		result.Elapsed = elapsed.Nanoseconds()
+		result := sqsadaptor.Result{
+			"2016-01-01 10:00:00",
+			"example.com",
+			"Fetch",
+			"928429348",
+			200,
+			elapsed.Nanoseconds(),
+			2398,
+			"Finished",
+		}
 		ch <- result
 	}
 
