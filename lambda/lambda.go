@@ -25,6 +25,8 @@ func main() {
 		return
 	}
 	client := &http.Client{}
+	clientTimeout, _ := time.ParseDuration("1s")
+	client.Timeout = clientTimeout
 	fmt.Printf("Will spawn %d workers each making %d requests to %s\n", concurrencycount, requestcount, address)
 	runLoadTest(client, sqsurl, address, requestcount, concurrencycount)
 }
