@@ -103,7 +103,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			statusStr := strconv.Itoa(r.Status)
 			_, ok := statuses[statusStr]
 			if !ok {
-				statuses[statusStr] = 0
+				statuses[statusStr] = 1
 			} else {
 				statuses[statusStr]++
 			}
