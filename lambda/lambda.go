@@ -26,9 +26,13 @@ func main() {
 	runLoadTest(address, requestcount, concurrencycount)
 }
 
+type RequestResult struct {
+	Elapsed int64
+}
+
 func runLoadTest(url string, requestcount int, concurrencycount int) {
 	totalRequests := requestcount * concurrencycount
-	ch := make(chan string, totalRequests)
+	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
@@ -47,7 +51,7 @@ func runLoadTest(url string, requestcount int, concurrencycount int) {
 
 }
 
-func fetch(address string, requestcount int, ch chan string, wg *sync.WaitGroup) {
+func fetch(address string, requestcount int, ch chan RequestResult, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fmt.Printf("Fetching %s %d times\n", address, requestcount)
 	for i := 0; i < requestcount; i++ {
@@ -64,7 +68,9 @@ func fetch(address string, requestcount int, ch chan string, wg *sync.WaitGroup)
 		}
 		//fmt.Printf("%s\n", string(contents))
 		elapsed := time.Since(start)
-		ch <- fmt.Sprintf("%d", elapsed.Nanoseconds())
+		var result RequestResult
+		result.Elapsed = elapsed.Nanoseconds()
+		ch <- result
 	}
 
 }
