@@ -4,16 +4,16 @@ import "time"
 
 // AggData type
 type AggData struct {
-	TotalReqs      int         `json:"total-reqs"`
-	TotalTimedOut  int         `json:"total-timed-out"`
-	AveTimeToFirst int64       `json:"ave-time-to-first"`
-	TotBytesRead   int         `json:"tot-bytes-read"`
-	Statuses       map[int]int `json:"statuses"`
-	AveTimeForReq  int64       `json:"ave-time-for-req"`
-	AveReqPerSec   int         `json:"ave-req-per-sec"`
-	Slowest        int64       `json:"slowest"`
-	Fastest        int64       `json:"fastest"`
-	Region         string      `json:"region"`
+	TotalReqs      int            `json:"total-reqs"`
+	TotalTimedOut  int            `json:"total-timed-out"`
+	AveTimeToFirst int64          `json:"ave-time-to-first"`
+	TotBytesRead   int            `json:"tot-bytes-read"`
+	Statuses       map[string]int `json:"statuses"`
+	AveTimeForReq  int64          `json:"ave-time-for-req"`
+	AveReqPerSec   int            `json:"ave-req-per-sec"`
+	Slowest        int64          `json:"slowest"`
+	Fastest        int64          `json:"fastest"`
+	Region         string         `json:"region"`
 }
 
 // RegionsAggData type
