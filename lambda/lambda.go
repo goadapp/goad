@@ -24,11 +24,12 @@ func main() {
 		fmt.Printf("ERROR %s\n", err)
 		return
 	}
+	client := &http.Client{}
 	fmt.Printf("Will spawn %d workers each making %d requests to %s\n", concurrencycount, requestcount, address)
-	runLoadTest(sqsurl, address, requestcount, concurrencycount)
+	runLoadTest(client, sqsurl, address, requestcount, concurrencycount)
 }
 
-func runLoadTest(sqsurl string, url string, requestcount int, concurrencycount int) {
+func runLoadTest(client *http.Client, sqsurl string, url string, requestcount int, concurrencycount int) {
 	sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
 
 	totalRequests := requestcount * concurrencycount
@@ -36,7 +37,7 @@ func runLoadTest(sqsurl string, url string, requestcount int, concurrencycount i
 	var wg sync.WaitGroup
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
-		go fetch(url, requestcount, ch, &wg)
+		go fetch(client, url, requestcount, ch, &wg)
 	}
 	fmt.Println("Waiting for results…")
 
@@ -54,12 +55,15 @@ func runLoadTest(sqsurl string, url string, requestcount int, concurrencycount i
 
 }
 
-func fetch(address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup) {
+func fetch(client *http.Client, address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 	fmt.Printf("Fetching %s %d times\n", address, requestcount)
 	for i := 0; i < requestcount; i++ {
 		start := time.Now()
-		response, err := http.Get(address)
+		req, err := http.NewRequest("GET", address, nil)
+		req.Header.Add("User-Agent", "GOAD/0.1")
+
+		response, err := client.Do(req)
 		if err != nil {
 			fmt.Printf("ERROR %s\n", err)
 			return
