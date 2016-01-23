@@ -10,4 +10,4 @@ preBootstrapCustomizations: ./src/css/_variables.scss
 appStyles: ./src/css/main.scss
 
 styles: true
-scripts: true
+scripts: false
