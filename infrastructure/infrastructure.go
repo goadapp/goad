@@ -1,9 +1,7 @@
 package infrastructure
 
 import (
-	"io/ioutil"
-	"os/user"
-	"path"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -45,12 +43,7 @@ func (infra *Infrastructure) setup() error {
 	if err != nil {
 		return err
 	}
-	// TODO: send the real lambda function.
-	usr, err := user.Current()
-	if err != nil {
-		return err
-	}
-	zip, err := ioutil.ReadFile(path.Join(usr.HomeDir, "goad-lambda.zip"))
+	zip, err := Asset("data/lambda.zip")
 	if err != nil {
 		return err
 	}
@@ -75,7 +68,7 @@ func (infra *Infrastructure) createLambdaFunction(roleArn string, payload []byte
 
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
-			if awsErr.Code() == "NoSuchEntity" {
+			if awsErr.Code() == "ResourceNotFoundException" {
 				_, err := svc.CreateFunction(&lambda.CreateFunctionInput{
 					Code: &lambda.FunctionCode{
 						ZipFile: payload,
@@ -89,7 +82,18 @@ func (infra *Infrastructure) createLambdaFunction(roleArn string, payload []byte
 					Publish:      aws.Bool(true),
 					Timeout:      aws.Int64(300),
 				})
-				return err
+				if err != nil {
+					if awsErr, ok := err.(awserr.Error); ok {
+						// Calling this function too soon after creating the role might
+						// fail, so we should retry after a little while.
+						// TODO: limit the number of retries.
+						if awsErr.Code() == "InvalidParameterValueException" {
+							time.Sleep(time.Second)
+							return infra.createLambdaFunction(roleArn, payload)
+						}
+					}
+					return err
+				}
 			}
 		}
 	}

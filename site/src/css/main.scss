@@ -34,3 +34,49 @@ body {
 .container .text-muted {
   margin: 20px 0;
 }
+
+// Results
+
+.panel-results {
+  border-color: $gray-lighter;
+
+  .panel-heading {
+    color: $gray-darker;
+    background-color: $gray-lighter;
+    border-color: $gray-lighter;
+  }
+
+  .panel-title {
+    font-family: $font-family-monospace;
+    font-size: 12px;
+  }
+}
+
+@keyframes blink {
+  from, to {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.test-results {
+  .panel-body {
+    padding: 0;
+  }
+
+  pre {
+    font-size: 12px;
+    margin: 0;
+    border: 0;
+    border-radius: 4px;
+    background: $gray-dark;
+    color: $gray-lighter;
+  }
+
+  .blinking-cursor {
+    color: $gray-lighter;
+    animation: 1s blink step-end infinite;
+  }
+}
