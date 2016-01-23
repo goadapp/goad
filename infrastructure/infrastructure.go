@@ -151,7 +151,16 @@ func (infra *Infrastructure) createIAMLambdaRolePolicy(roleName string) error {
               ],
               "Effect": "Allow",
               "Resource": "arn:aws:sqs:*:*:goad-*"
-            }
+		  	},
+			{
+              "Action": [
+                "logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Effect": "Allow",
+              "Resource": "arn:aws:logs:*:*:*"
+	        }
           ]
         }`),
 		PolicyName: aws.String("goad-lambda-role-policy"),
