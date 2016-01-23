@@ -7,10 +7,25 @@ html
     title Goad
   body
     .container
-      .starter-template
-        h1 Goad
-        p.lead
-          | Goad is an AWS Lambda based load testing tool buil in Go for the 2016 Gopher Gala
-          br
-          | Go + Load = Goad
-        img src="img/goad.svg"
+      .row
+        .col-md-12
+          .jumbotron
+            .row
+              .col-md-8
+                h1 Goad
+                p.lead
+                  | Goad is an AWS Lambda powered, highly distributed,
+                  | load testing tool built in Go for the&#32;
+                  | <a href="">2016 Gopher Gala</a>.
+                p
+                  strong Go + Load
+                  | &#32;⇒&#32;
+                  strong Goad
+                a.btn.btn-success.btn-lg.btn-block href="#"
+                  span.glyphicon.glyphicon-dashboard aria-hidden="true"
+                  | &#32;Try it now! No installation required.
+                p.text-center
+                  a.text-muted href="#"
+                    small or install it locally to get the full feature set…
+              .col-md-4
+                img.goad src="img/goad.svg" alt="Goad logo"
