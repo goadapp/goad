@@ -68,20 +68,20 @@ func fetch(client *http.Client, address string, requestcount int, ch chan sqsada
 			fmt.Printf("ERROR %s\n", err)
 			return
 		}
-		_, err = ioutil.ReadAll(response.Body)
+		buf, err := ioutil.ReadAll(response.Body)
 		if err != nil {
 			fmt.Printf("ERROR %s\n", err)
 			return
 		}
 		elapsed := time.Since(start)
 		result := sqsadaptor.Result{
-			"2016-01-01 10:00:00",
-			"example.com",
+			start.Format(time.RFC3339),
+			req.URL.Host,
 			"Fetch",
-			"928429348",
-			200,
+			"4711",
+			response.StatusCode,
 			elapsed.Nanoseconds(),
-			2398,
+			len(buf),
 			"Finished",
 		}
 		ch <- result
