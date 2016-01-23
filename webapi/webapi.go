@@ -1,8 +1,8 @@
 package webapi
 
 import (
+	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -13,6 +13,14 @@ import (
 
 var addr = flag.String("addr", ":8080", "http service address")
 var upgrader = websocket.Upgrader{}
+
+func jsonFromRegionsAggData(result sqsadaptor.RegionsAggData) (string, error) {
+	data, jsonerr := json.Marshal(result)
+	if jsonerr != nil {
+		return "", jsonerr
+	}
+	return string(data), nil
+}
 
 func serveResults(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/goad" {
@@ -63,15 +71,20 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 
 	// go startTest(url, concurrency, tot, timeout)
 
-	sqsadaptor.Aggregate(resultChan)
+	//	sqsadaptor.Aggregate(resultChan)
 
 	for {
 		result, more := <-resultChan
 		if !more {
 			break
 		}
-		fmt.Println(result) // stuff the results over the websocket
-		err = c.WriteMessage(websocket.TextMessage, []byte("{\"hello\" : \"goodbye\"}"))
+
+		message, jsonerr := jsonFromRegionsAggData(result)
+		if jsonerr != nil {
+			log.Println(jsonerr)
+			break
+		}
+		err = c.WriteMessage(websocket.TextMessage, []byte(message))
 		if err != nil {
 			log.Println("write:", err)
 			break
