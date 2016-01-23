@@ -44,7 +44,9 @@ func runLoadTest(sqsurl string, url string, requestcount int, concurrencycount i
 	for completedRequests < totalRequests {
 		r := <-ch
 		completedRequests++
-		fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(completedRequests)/float64(totalRequests))*100.0, completedRequests, totalRequests)
+		if completedRequests%10 == 0 {
+			fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(completedRequests)/float64(totalRequests))*100.0, completedRequests, totalRequests)
+		}
 		sqsAdaptor.SendResult(r)
 	}
 	wg.Wait()
