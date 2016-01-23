@@ -45,7 +45,9 @@
     "sass-loader": "^3.1.2",
     "slm-loader": "^0.1.1",
     "style-loader": "^0.13.0",
+    "superagent": "^1.7.1",
     "url-loader": "^0.5.7",
+    "valid-url": "^1.0.9",
     "webpack": "^1.12.11",
     "webpack-dev-server": "^1.14.1"
   }

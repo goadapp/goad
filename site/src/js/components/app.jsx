@@ -3,11 +3,30 @@ import Form from './form.jsx';
 import Results from './results.jsx';
 
 export default class App extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      url: "",
+      submitted: false
+    };
+  }
+
+  handleUpdate(err, res, data) {
+    this.setState({
+      submitted: true,
+      url: data.url
+    });
+
+    // TODO: sign-up for updates via websockets
+
+    console.log("handleUpdate", err, res, data);
+  }
+
   render() {
-    if (true) {
-      return (<Results url="https://example.invalid" />);
+    if (this.state.submitted) {
+      return (<Results url={this.state.url} />);
     } else {
-      return (<Form />);
+      return (<Form onUpdate={this.handleUpdate.bind(this)} />);
     }
   }
 }

@@ -15,7 +15,6 @@ export default class Downloads extends React.Component {
       }
 
       var className = "list-group-item";
-      console.log(platform);
 
       if (binary.os == "OS X" && platform.os.family == "OS X") {
         className = className + " list-group-item-success";
