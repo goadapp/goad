@@ -50,7 +50,7 @@ func getClient() *sqs.SQS {
 }
 
 // Receive a result, or timeout in 1 second
-func (adaptor SQSAdaptor) Receive() *Result {
+func (adaptor SQSAdaptor) Receive() *AggData {
 	params := &sqs.ReceiveMessageInput{
 		QueueUrl:            aws.String(adaptor.QueueURL),
 		MaxNumberOfMessages: aws.Int64(1),
@@ -90,8 +90,8 @@ func (adaptor SQSAdaptor) Receive() *Result {
 	return &result
 }
 
-func resultFromJSON(str string) (Result, error) {
-	var result Result
+func resultFromJSON(str string) (AggData, error) {
+	var result AggData
 	jsonerr := json.Unmarshal([]byte(str), &result)
 	if jsonerr != nil {
 		return result, jsonerr
@@ -99,7 +99,7 @@ func resultFromJSON(str string) (Result, error) {
 	return result, nil
 }
 
-func jsonFromResult(result Result) (string, error) {
+func jsonFromResult(result AggData) (string, error) {
 	data, jsonerr := json.Marshal(result)
 	if jsonerr != nil {
 		return "", jsonerr
@@ -108,7 +108,7 @@ func jsonFromResult(result Result) (string, error) {
 }
 
 // SendResult adds a result to the queue
-func (adaptor SQSAdaptor) SendResult(result Result) {
+func (adaptor SQSAdaptor) SendResult(result AggData) {
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)
@@ -127,7 +127,7 @@ func (adaptor SQSAdaptor) SendResult(result Result) {
 }
 
 // SendResult prints the result
-func (adaptor DummyAdaptor) SendResult(result Result) {
+func (adaptor DummyAdaptor) SendResult(result AggData) {
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)
