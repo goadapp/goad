@@ -26,7 +26,7 @@ func TestJSON(t *testing.T) {
 		2398,
 		"Finished",
 	}
-	str, jsonerr := messageJSON(result)
+	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println("JSON error")
 		return
