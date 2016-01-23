@@ -6,6 +6,7 @@ var precss = require("precss");
 
 module.exports = {
   entry: [
+    "bootstrap-loader",
     "./src/js/main.js"
   ],
   output: {
@@ -21,8 +22,16 @@ module.exports = {
         include: __dirname + "/src"
       },
       {
+        test: /\.css$/,
+        loaders: [ 'style', 'css', 'postcss' ]
+      },
+      {
         test: /\.scss$/,
         loader: "style-loader!css-loader!sass-loader!postcss-loader"
+      },
+      {
+        test: /bootstrap-sass\/assets\/javascripts\//,
+        loader: 'imports?jQuery=jquery'
       },
       {
         test: /\.(png|jpg|gif)$/,
@@ -36,6 +45,10 @@ module.exports = {
         test: /\.html\.(slm|slim)$/,
         loader: 'html!slm'
       },
+      {
+        test: require.resolve("jquery"),
+        loader: "imports?this=>window"
+      }
     ]
   },
   plugins: [
