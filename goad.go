@@ -46,10 +46,12 @@ func (t *Test) Start() <-chan Result {
 	t.invokeLambda(infra.QueueURL())
 
 	results := make(chan sqsadaptor.RegionsAggData)
-	sqsadaptor.Aggregate(results, infra.QueueURL(), t.config.TotalRequests)
 
+	go func() {
+		sqsadaptor.Aggregate(results, infra.QueueURL(), t.config.TotalRequests)
+	}()
 	for result := range results {
-		fmt.Println(result)
+		fmt.Printf("%#v\n", result)
 	}
 	return nil
 }
