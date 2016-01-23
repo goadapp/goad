@@ -13,6 +13,7 @@ type AggData struct {
 	AveReqPerSec   int         `json:"ave-req-per-sec"`
 	Slowest        int64       `json:"slowest"`
 	Fastest        int64       `json:"fastest"`
+	Region         string      `json:"region"`
 }
 
 // RegionsAggData type
@@ -20,7 +21,7 @@ type RegionsAggData struct {
 	Regions map[string]AggData
 }
 
-// Aggregate listens for results and sends totals
+// Aggregate listens for results and sends totals, closing the channel when done
 func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedRequests uint) {
 	defer close(outChan)
 	data := RegionsAggData{make(map[string]AggData)}
@@ -35,7 +36,7 @@ func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedReques
 			timeoutStart = time.Now()
 		} else {
 			waited := time.Since(timeoutStart)
-			if waited.Seconds() > 10 {
+			if waited.Seconds() > 20 {
 				break
 			}
 		}
