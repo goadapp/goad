@@ -17,9 +17,10 @@ module.exports = {
   module: {
     loaders: [
       {
-        test: /\.js$/,
-        loader: "react-hot!babel",
-        include: __dirname + "/src"
+        test: /\.jsx?$/,
+        exclude: /(node_modules|bower_components)/,
+        loader: "react-hot!babel?cacheDirectory,presets[]=react,presets[]=es2015",
+        include: __dirname + "/src",
       },
       {
         test: /\.css$/,

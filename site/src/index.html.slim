@@ -21,11 +21,46 @@ html
                   strong Go + Load
                   | &#32;⇒&#32;
                   strong Goad
-                a.btn.btn-success.btn-lg.btn-block href="#"
+                a.btn.btn-success.btn-lg.btn-block href="#demo"
                   span.glyphicon.glyphicon-dashboard aria-hidden="true"
                   | &#32;Try it now! No installation required.
                 p.text-center
-                  a.text-muted href="#"
+                  a.text-muted href="#install"
                     small or install it locally to get the full feature set…
               .col-md-4
                 img.goad src="img/goad.svg" alt="Goad logo"
+
+      #demo.row
+        .col-md-8.col-md-offset-2
+          h2 Demo
+
+          p Use this online demo to give Goad a try without having to install anything.
+
+          p
+            | As we don't want this to turn into a DDoS-on-demand tool, this
+            | online version of Goad is intentionally limited to just 10 requests
+            | per second. The CLI version of Goad doesn't have this limitation.
+
+          #form
+          br
+
+      #install.row
+        .col-md-8.col-md-offset-2
+          .panel.panel-info
+            .panel-heading
+              h3.panel-title Install the CLI tool
+            .panel-body
+              p Download a pre-built binary or install the Go package from GitHub
+
+              h4 Binaries
+
+              #downloads
+
+              h4 Build from source
+
+              p See the instructions in the <a href="https://github.com/gophergala2016/goad#readme">README</a>.
+
+    footer.footer
+      .container
+        p.text-muted
+          | Created by the Goad team. <a href="https://github.com/gophergala2016/goad">GitHub</a>
