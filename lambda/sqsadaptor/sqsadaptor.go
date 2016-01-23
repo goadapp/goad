@@ -16,7 +16,7 @@ type Result struct {
 	Type      string `json:"type"`
 	RequestID string `json:"requestID"`
 	Status    int    `json:"status"`
-	Elapsed   int    `json:"elapsed"`
+	Elapsed   int64  `json:"elapsed"`
 	Bytes     int    `json:"bytes"`
 	State     string `json:"state"`
 }
