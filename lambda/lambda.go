@@ -20,6 +20,8 @@ func main() {
 	}
 	requestcount, err := strconv.Atoi(os.Args[3])
 	sqsurl := os.Args[4]
+	lambdainstance := os.Args[5]
+
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
 		return
@@ -28,10 +30,10 @@ func main() {
 	clientTimeout, _ := time.ParseDuration("1s")
 	client.Timeout = clientTimeout
 	fmt.Printf("Will spawn %d workers each making %d requests to %s\n", concurrencycount, requestcount, address)
-	runLoadTest(client, sqsurl, address, requestcount, concurrencycount)
+	runLoadTest(client, sqsurl, address, requestcount, concurrencycount, lambdainstance)
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, requestcount int, concurrencycount int) {
+func runLoadTest(client *http.Client, sqsurl string, url string, requestcount int, concurrencycount int, lambdainstance string) {
 	sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
 
 	totalRequests := requestcount * concurrencycount
@@ -39,7 +41,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, requestcount in
 	var wg sync.WaitGroup
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
-		go fetch(client, url, requestcount, ch, &wg)
+		go fetch(client, url, requestcount, ch, &wg, lambdainstance)
 	}
 	fmt.Println("Waiting for results…")
 
@@ -57,7 +59,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, requestcount in
 
 }
 
-func fetch(client *http.Client, address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup) {
+func fetch(client *http.Client, address string, requestcount int, ch chan sqsadaptor.Result, wg *sync.WaitGroup, lambdainstance string) {
 	defer wg.Done()
 	fmt.Printf("Fetching %s %d times\n", address, requestcount)
 	for i := 0; i < requestcount; i++ {
@@ -97,6 +99,7 @@ func fetch(client *http.Client, address string, requestcount int, ch chan sqsada
 			elapsedLastByte.Nanoseconds(),
 			len(buf),
 			status,
+			lambdainstance,
 		}
 		ch <- result
 	}

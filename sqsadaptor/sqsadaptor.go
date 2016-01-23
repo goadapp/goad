@@ -20,6 +20,7 @@ type Result struct {
 	Elapsed          int64  `json:"elapsed"`
 	Bytes            int    `json:"bytes"`
 	State            string `json:"state"`
+	Instance         string `json:"instance"`
 }
 
 // SQSAdaptor is used to send messages to the queue
