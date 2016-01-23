@@ -32,11 +32,6 @@ type DummyAdaptor struct {
 	QueueURL string
 }
 
-// ResultAdaptor defines the methods needed to return the result
-type ResultAdaptor interface {
-	SendResult(result Result)
-}
-
 // NewSQSAdaptor returns a new sqs adator object
 func NewSQSAdaptor(queueURL string) SQSAdaptor {
 	return SQSAdaptor{getClient(), queueURL}
@@ -50,6 +45,39 @@ func NewDummyAdaptor(queueURL string) DummyAdaptor {
 func getClient() *sqs.SQS {
 	client := sqs.New(session.New())
 	return client
+}
+
+// Receive a result, or timeout in 1 second
+func (adaptor SQSAdaptor) Receive() {
+	params := &sqs.ReceiveMessageInput{
+		QueueUrl:            aws.String(adaptor.QueueURL),
+		MaxNumberOfMessages: aws.Int64(1),
+		VisibilityTimeout:   aws.Int64(1),
+		WaitTimeSeconds:     aws.Int64(1),
+	}
+	resp, err := adaptor.Client.ReceiveMessage(params)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	if len(resp.Messages) == 0 {
+		return
+	}
+
+	item := resp.Messages[0]
+
+	deleteParams := &sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(adaptor.QueueURL),
+		ReceiptHandle: aws.String(*item.ReceiptHandle),
+	}
+	_, delerr := adaptor.Client.DeleteMessage(deleteParams)
+
+	if delerr != nil {
+		fmt.Println(err.Error())
+		return
+	}
 }
 
 func messageJSON(result Result) (string, error) {
