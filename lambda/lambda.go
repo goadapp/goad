@@ -68,7 +68,11 @@ func fetch(client *http.Client, address string, requestcount int, ch chan sqsada
 			fmt.Printf("ERROR %s\n", err)
 			return
 		}
-		buf, err := ioutil.ReadAll(response.Body)
+		buf := []byte(" ")
+		_, err = response.Body.Read(buf)
+		elapsedFirstByte := time.Since(start)
+		_, err = ioutil.ReadAll(response.Body)
+		elapsedLastByte := time.Since(start)
 		if err != nil {
 			fmt.Printf("ERROR %s\n", err)
 			return
@@ -78,9 +82,10 @@ func fetch(client *http.Client, address string, requestcount int, ch chan sqsada
 			start.Format(time.RFC3339),
 			req.URL.Host,
 			"Fetch",
-			"4711",
 			response.StatusCode,
 			elapsed.Nanoseconds(),
+			elapsedFirstByte.Nanoseconds(),
+			elapsedLastByte.Nanoseconds(),
 			len(buf),
 			"Finished",
 		}

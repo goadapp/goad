@@ -11,14 +11,15 @@ import (
 
 // Result test result
 type Result struct {
-	Time      string `json:"time"`
-	Host      string `json:"host"`
-	Type      string `json:"type"`
-	RequestID string `json:"requestID"`
-	Status    int    `json:"status"`
-	Elapsed   int64  `json:"elapsed"`
-	Bytes     int    `json:"bytes"`
-	State     string `json:"state"`
+	Time             string `json:"time"`
+	Host             string `json:"host"`
+	Type             string `json:"type"`
+	Status           int    `json:"status"`
+	ElapsedFirstByte int64  `json:"elapsed-first-byte"`
+	ElapsedLastByte  int64  `json:"elapsed-last-byte"`
+	Elapsed          int64  `json:"elapsed"`
+	Bytes            int    `json:"bytes"`
+	State            string `json:"state"`
 }
 
 // SQSAdaptor is used to send messages to the queue
