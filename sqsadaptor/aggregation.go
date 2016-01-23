@@ -13,6 +13,7 @@ type AggData struct {
 	AveReqPerSec   int         `json:"ave-req-per-sec"`
 	Slowest        int64       `json:"slowest"`
 	Fastest        int64       `json:"fastest"`
+	Region         string      `json:"region"`
 }
 
 // RegionsAggData type
