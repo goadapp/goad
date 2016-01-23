@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/gophergala2016/goad/lambda/sqsadaptor"
+	"github.com/gophergala2016/goad/sqsadaptor"
 	"io/ioutil"
 	"net/http"
 	"os"
