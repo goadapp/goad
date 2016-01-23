@@ -16,23 +16,22 @@ func TestAdaptorConstruction(t *testing.T) {
 }
 
 func TestJSON(t *testing.T) {
-	result := Result{
-		"2016-01-01 10:00:00",
-		"example.com",
-		"Fetch",
-		200,
-		int64(12345), // elapsed, first byte
-		int64(6789),  // elapsed, last byte
-		int64(4567),  // elapsed, total
-		4711,         //bytes
-		"Success",
-		"aws-lambda-4711", // AWS lamba instance
-
+	result := AggData{
+		299,
+		234,
+		int64(9999),
+		2136,
+		make(map[string]int),
+		int64(12345),
+		6789,
+		int64(4567),
+		int64(4567),
+		"eu-west",
 	}
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
-		fmt.Println("JSON error")
+		fmt.Println(jsonerr)
 		return
 	}
-	assert.Equal(t, str, "{\"time\":\"2016-01-01 10:00:00\",\"host\":\"example.com\",\"type\":\"Fetch\",\"status\":200,\"elapsed-first-byte\":12345,\"elapsed-last-byte\":6789,\"elapsed\":4567,\"bytes\":4711,\"state\":\"Success\",\"instance\":\"aws-lambda-4711\"}")
+	assert.Equal(t, str, "{\"total-reqs\":299,\"total-timed-out\":234,\"ave-time-to-first\":9999,\"tot-bytes-read\":2136,\"statuses\":{},\"ave-time-for-req\":12345,\"ave-req-per-sec\":6789,\"slowest\":4567,\"fastest\":4567,\"region\":\"eu-west\"}")
 }
