@@ -27,9 +27,24 @@ type SQSAdaptor struct {
 	QueueURL string
 }
 
-// New returns a new sqs interface object
-func New(queueURL string) SQSAdaptor {
+// DummyAdaptor is used to send messages to the screen for testing
+type DummyAdaptor struct {
+	QueueURL string
+}
+
+// ResultAdaptor defines the methods needed to return the result
+type ResultAdaptor interface {
+	SendResult(result Result)
+}
+
+// NewSQSAdaptor returns a new sqs adator object
+func NewSQSAdaptor(queueURL string) SQSAdaptor {
 	return SQSAdaptor{getClient(), queueURL}
+}
+
+// NewDummyAdaptor returns a new sqs adator object
+func NewDummyAdaptor(queueURL string) DummyAdaptor {
+	return DummyAdaptor{queueURL}
 }
 
 func getClient() *sqs.SQS {
@@ -62,4 +77,14 @@ func (adaptor SQSAdaptor) SendResult(result Result) {
 		fmt.Println(err.Error())
 		return
 	}
+}
+
+// SendResult prints the result
+func (adaptor DummyAdaptor) SendResult(result Result) {
+	str, jsonerr := messageJSON(result)
+	if jsonerr != nil {
+		fmt.Println(jsonerr)
+		return
+	}
+	fmt.Println(str)
 }

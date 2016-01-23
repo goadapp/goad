@@ -11,7 +11,7 @@ func init() {
 }
 
 func TestAdaptorConstruction(t *testing.T) {
-	testsqs := New("testqueue")
+	testsqs := NewSQSAdaptor("testqueue")
 	assert.Equal(t, testsqs.QueueURL, "testqueue")
 }
 
