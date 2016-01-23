@@ -20,7 +20,7 @@ type RegionsAggData struct {
 	Regions map[string]AggData
 }
 
-// Aggregate listens for results and sends totals
+// Aggregate listens for results and sends totals, closing the channel when done
 func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedRequests int) {
 	defer close(outChan)
 	data := RegionsAggData{make(map[string]AggData)}
@@ -35,7 +35,7 @@ func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedReques
 			timeoutStart = time.Now()
 		} else {
 			waited := time.Since(timeoutStart)
-			if waited.Seconds() > 10 {
+			if waited.Seconds() > 20 {
 				break
 			}
 		}
