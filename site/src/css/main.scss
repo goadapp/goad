@@ -54,10 +54,10 @@ body {
 
 @keyframes blink {
   from, to {
-    color: transparent;
+    opacity: 0;
   }
   50% {
-    color: $gray-lighter;
+    opacity: 1;
   }
 }
 
