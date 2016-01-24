@@ -107,7 +107,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			case r := <-ch:
 				i++
 				requestsSoFar++
-				if requestsSoFar%10 == 0 {
+				if requestsSoFar%10 == 0 || requestsSoFar == totalRequests {
 					fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
 				}
 				if firstRequestTime == 0 {
