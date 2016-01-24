@@ -49,6 +49,7 @@ func main() {
 		TotalRequests:  requests,
 		RequestTimeout: time.Duration(timeout) * time.Second,
 		Regions:        strings.Split(regions, ","),
+		Method:         method,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
