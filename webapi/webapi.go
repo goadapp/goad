@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gophergala2016/goad"
 	"github.com/gophergala2016/goad/sqsadaptor"
@@ -68,33 +69,36 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	resultChan := make(chan sqsadaptor.RegionsAggData)
-
-	config := TestConfig{
+	config := goad.TestConfig{
 		url,
-		concurrency,
-		tot,
-		timeout,
-		"",
+		uint(concurrency),
+		uint(tot),
+		time.Duration(timeout),
+		"eu-west-1",
 	}
 
-	test := goad.NewTest(config)
+	test := goad.NewTest(&config)
 	resultChan := test.Start()
 
-	for {
-		result, more := <-resultChan
-		if !more {
-			break
-		}
-
+	for result := range resultChan {
 		message, jsonerr := jsonFromRegionsAggData(result)
 		if jsonerr != nil {
 			log.Println(jsonerr)
 			break
 		}
+		go readLoop(c)
 		err = c.WriteMessage(websocket.TextMessage, []byte(message))
 		if err != nil {
 			log.Println("write:", err)
+			break
+		}
+	}
+}
+
+func readLoop(c *websocket.Conn) {
+	for {
+		if _, _, err := c.NextReader(); err != nil {
+			c.Close()
 			break
 		}
 	}
