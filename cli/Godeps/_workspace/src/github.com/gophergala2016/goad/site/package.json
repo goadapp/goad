@@ -1,0 +1,58 @@
+{
+  "name": "goad-site",
+  "version": "1.0.0",
+  "description": "Site for goad project",
+  "main": "src/js/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gophergala2016/goad.git"
+  },
+  "author": "The goad team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gophergala2016/goad/issues"
+  },
+  "homepage": "https://github.com/gophergala2016/goad#readme",
+  "devDependencies": {
+    "autoprefixer": "^6.3.1",
+    "babel-core": "^6.4.5",
+    "babel-loader": "^6.2.1",
+    "babel-preset-es2015": "^6.3.13",
+    "babel-preset-react": "^6.3.13",
+    "bootstrap-loader": "^1.0.5",
+    "bootstrap-sass": "^3.3.6",
+    "copy-webpack-plugin": "^0.3.3",
+    "css-loader": "^0.23.1",
+    "extract-text-webpack-plugin": "^1.0.1",
+    "file-loader": "^0.8.5",
+    "gulp": "^3.9.0",
+    "gulp-util": "^3.0.7",
+    "html-loader": "^0.4.0",
+    "html-webpack-plugin": "^2.7.1",
+    "humanize-plus": "^1.5.0",
+    "imports-loader": "^0.6.5",
+    "jquery": "^2.2.0",
+    "layout-loader": "^1.0.3",
+    "node-sass": "^3.4.2",
+    "platform": "^1.3.1",
+    "postcss-loader": "^0.8.0",
+    "precss": "^1.4.0",
+    "react": "^0.14.6",
+    "react-dom": "^0.14.6",
+    "react-hot-loader": "^1.3.0",
+    "resolve-url-loader": "^1.4.3",
+    "rimraf": "^2.5.1",
+    "sass-loader": "^3.1.2",
+    "slm-loader": "^0.1.1",
+    "smoothscroll": "^0.2.2",
+    "style-loader": "^0.13.0",
+    "urijs": "^1.17.0",
+    "url-loader": "^0.5.7",
+    "valid-url": "^1.0.9",
+    "webpack": "^1.12.11",
+    "webpack-dev-server": "^1.14.1"
+  }
+}
