@@ -84,7 +84,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		5,
 		1000,
 		time.Duration(7),
-		"eu-west-1",
+		"us-east-1",
 	}
 
 	test, testerr := goad.NewTest(&config)
