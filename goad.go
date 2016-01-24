@@ -13,7 +13,7 @@ import (
 	"github.com/gophergala2016/goad/sqsadaptor"
 )
 
-type Result struct{}
+//type Result struct{}
 
 type TestConfig struct {
 	URL            string
@@ -35,25 +35,23 @@ func NewTest(config *TestConfig) *Test {
 	return &Test{config}
 }
 
-func (t *Test) Start() <-chan Result {
+func (t *Test) Start() <-chan sqsadaptor.RegionsAggData {
 	awsConfig := aws.NewConfig().WithRegion(t.config.Region)
 	infra, err := infrastructure.New(awsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer infra.Clean()
+	//	defer infra.Clean()
 
 	t.invokeLambda(awsConfig, infra.QueueURL())
 
 	results := make(chan sqsadaptor.RegionsAggData)
 
-	go func() {
-		sqsadaptor.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
-	}()
-	for result := range results {
-		fmt.Printf("%#v\n", result)
-	}
-	return nil
+	go sqsadaptor.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
+	//	for result := range results {
+	//		fmt.Printf("%#v\n", result)
+	//	}
+	return results
 }
 
 func (t *Test) invokeLambda(awsConfig *aws.Config, sqsURL string) {
