@@ -55,6 +55,7 @@ We use WebSockets and React to present the results of the demo load test every f
 
 As we wanted to prevent the site from being used as a DDoS tool, the online demo is very limited but hopefully enough to demonstrate the usefulness of the CLI version of Goad.
 
+* [Bootstrap][] and the Darkly theme from [Bootswatch][]
 * [WebPack][]
 * [React][]
 * [Babel][]
@@ -76,6 +77,8 @@ See the LICENSE file for more details.
 [UUID]: https://github.com/satori/go.uuid
 [bindata]: https://github.com/jteeuwen/go-bindata
 
+[Bootstrap]: http://getbootstrap.com/
+[Bootswatch]: https://bootswatch.com/
 [WebPack]: https://webpack.github.io/
 [React]: https://facebook.github.io/react/
 [Babel]: https://babeljs.io/
