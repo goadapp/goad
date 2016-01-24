@@ -38,7 +38,7 @@ export default class Form extends React.Component {
       formGroupClass = `${formGroupClass} has-success`
     } else {
       formGroupClass = `${formGroupClass} has-error`
-      helpBlock = <span class="help-block">Please enter a fully qualified valid URL…</span>;
+      helpBlock = <span className="help-block">Please enter a fully qualified valid URL…</span>;
     }
 
     return (
