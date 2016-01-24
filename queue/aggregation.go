@@ -25,7 +25,8 @@ type AggData struct {
 
 // RegionsAggData type
 type RegionsAggData struct {
-	Regions map[string]AggData
+	Regions               map[string]AggData
+	TotalExpectedRequests uint
 }
 
 func addResult(data *AggData, result *AggData) {
@@ -63,7 +64,7 @@ func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uin
 
 func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) {
 	defer close(results)
-	data := RegionsAggData{make(map[string]AggData)}
+	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests}
 
 	adaptor := NewSQSAdaptor(awsConfig, queueURL)
 	timeoutStart := time.Now()

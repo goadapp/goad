@@ -61,19 +61,26 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData) {
 	resultChan := test.Start()
 	termbox.Sync()
 	for result := range resultChan {
-		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
+		//		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
 		// sort so that regions always appear in the same order
 		var regions []string
 		for key := range result.Regions {
 			regions = append(regions, key)
 		}
 		sort.Strings(regions)
-		y := 0
+		y := 3
+		totalReqs := 0
 		for _, region := range regions {
 			data := result.Regions[region]
+			totalReqs += data.TotalReqs
 			y = renderRegion(data, y)
 			y++
 		}
+
+		y = 0
+		percentDone := float64(totalReqs) / float64(result.TotalExpectedRequests)
+		drawProgressBar(percentDone, y)
+
 		termbox.Flush()
 		finalResult.Regions = result.Regions
 	}
@@ -96,6 +103,24 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 	return y
+}
+
+func drawProgressBar(percent float64, y int) {
+	x := 0
+	percentStr := fmt.Sprintf("%5.1f%%", percent*100)
+	renderString(x, y, percentStr, coldef, coldef)
+	y++
+
+	hashes := int(percent * 50)
+	if percent > 0.98 {
+		hashes = 50
+	}
+	renderString(x, y, "[", coldef, coldef)
+
+	for x++; x <= hashes; x++ {
+		renderString(x, y, "#", coldef, coldef)
+	}
+	renderString(51, y, "]", coldef, coldef)
 }
 
 func renderString(x int, y int, str string, f termbox.Attribute, b termbox.Attribute) {
