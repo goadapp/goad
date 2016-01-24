@@ -30,23 +30,22 @@ func main() {
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
-	flag.StringVar(&region, "r", "us-east-1", "AWS region")
+	flag.StringVar(&region, "r", "us-east-1", "AWS regions to run in")
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
-		fmt.Println("You must specify a URL")
+		fmt.Println("You must specify a URL as a last argument")
 		os.Exit(1)
 	}
 
 	url = flag.Args()[0]
 
 	test, testerr := goad.NewTest(&goad.TestConfig{
-		URL:                url,
-		Concurrency:        concurrency,
-		TotalRequests:      requests,
-		RequestTimeout:     time.Duration(timeout) * time.Second,
-		Region:             region,
-		ReportingFrequency: 1,
+		URL:            url,
+		Concurrency:    concurrency,
+		TotalRequests:  requests,
+		RequestTimeout: time.Duration(timeout) * time.Second,
+		Region:         region,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
@@ -131,16 +130,16 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
 	x = 0
 	y++
-	headingStr := "   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte"
+	headingStr := "   TotReqs   TotBytes    AvgTime   AvgReq/s"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr := fmt.Sprintf("%10d %10d   %7.2fs %10.2f   %7.2fs", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
+	resultStr := fmt.Sprintf("%10d %10d   %7.3fs %10.2f", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
-	headingStr = "   Slowest    Fastest     Errors"
+	headingStr = "   Slowest    Fastest   Timeouts  TotErrors"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr = fmt.Sprintf("   %7.2f    %7.2f %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, totErrors(&data))
+	resultStr = fmt.Sprintf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(&data))
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 
@@ -186,6 +185,14 @@ func boldPrintln(msg string) {
 	fmt.Printf("\033[1m%s\033[0m\n", msg)
 }
 
+func printData(data *queue.AggData) {
+	boldPrintln("   TotReqs   TotBytes    AvgTime   AvgReq/s")
+	fmt.Printf("%10d %10d   %7.3fs %10.2f\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
+	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
+	fmt.Printf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
+	fmt.Println("")
+}
+
 func printSummary(result *queue.RegionsAggData) {
 	if len(result.Regions) == 0 {
 		boldPrintln("No results received")
@@ -196,11 +203,7 @@ func printSummary(result *queue.RegionsAggData) {
 
 	for region, data := range result.Regions {
 		fmt.Println("Region: " + region)
-		boldPrintln("   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte")
-		fmt.Printf("%10d %10d   %7.2fs %10.2f   %7.2fs\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
-		boldPrintln("   Slowest    Fastest     Errors")
-		fmt.Printf("   %7.2f    %7.2f %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, totErrors(&data))
-		fmt.Println("")
+		printData(&data)
 	}
 
 	overall := queue.SumRegionResults(result)
@@ -208,11 +211,7 @@ func printSummary(result *queue.RegionsAggData) {
 	fmt.Println("")
 	boldPrintln("Overall")
 	fmt.Println("")
-	boldPrintln("   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte")
-	fmt.Printf("%10d %10d   %7.2fs %10.2f   %7.2fs\n", overall.TotalReqs, overall.TotBytesRead, float64(overall.AveTimeForReq)/nano, overall.AveReqPerSec, float64(overall.AveTimeToFirst)/nano)
-	boldPrintln("   Slowest    Fastest     Errors")
-	fmt.Printf("   %7.2f    %7.2f %10d", float64(overall.Slowest)/nano, float64(overall.Fastest)/nano, totErrors(overall))
-	fmt.Println("")
+	printData(overall)
 
 	boldPrintln("HTTPStatus   Requests")
 	for statusStr, value := range overall.Statuses {
