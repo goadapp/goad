@@ -26,13 +26,15 @@ func main() {
 	maxRequestCount, err := strconv.Atoi(os.Args[3])
 	sqsurl := os.Args[4]
 	awsregion := os.Args[5]
-
+	clientTimeout, _ := time.ParseDuration("1s")
+	if len(os.Args) >= 7 {
+		clientTimeout, _ = time.ParseDuration(os.args[6])
+	}
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
 		return
 	}
 	client := &http.Client{}
-	clientTimeout, _ := time.ParseDuration("1s")
 	client.Timeout = clientTimeout
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
 	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion)
@@ -50,12 +52,14 @@ type RequestResult struct {
 	Elapsed          int64  `json:"elapsed"`
 	Bytes            int    `json:"bytes"`
 	Timeout          bool   `json:"timeout"`
+	ConnectionError  bool   `json:"connection-error"`
 	State            string `json:"state"`
 }
 
 func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string) {
 	awsConfig := aws.NewConfig().WithRegion(awsregion)
 	sqsAdaptor := sqsadaptor.NewSQSAdaptor(awsConfig, sqsurl)
+	//sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
@@ -164,6 +168,7 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		var bytesRead int
 		buf := []byte(" ")
 		timedOut := false
+		connectionError := false
 		if err != nil {
 			status = fmt.Sprintf("ERROR: %s\n", err)
 			//fmt.Println(status)
@@ -180,6 +185,10 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 
 			if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
 				fmt.Println("Could be from a Transport.CancelRequest")
+				connectionError = true
+			}
+			if !timedOut {
+				connectionError = true
 			}
 		} else {
 			statusCode = response.StatusCode
@@ -208,6 +217,7 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			elapsedLastByte.Nanoseconds(),
 			bytesRead,
 			timedOut,
+			connectionError,
 			status,
 		}
 		ch <- result
