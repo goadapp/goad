@@ -43,12 +43,12 @@ func (t *Test) Start() <-chan Result {
 	}
 	defer infra.Clean()
 
-	t.invokeLambda(infra.QueueURL())
+	t.invokeLambda(awsConfig, infra.QueueURL())
 
 	results := make(chan sqsadaptor.RegionsAggData)
 
 	go func() {
-		sqsadaptor.Aggregate(results, infra.QueueURL(), t.config.TotalRequests)
+		sqsadaptor.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
 	}()
 	for result := range results {
 		fmt.Printf("%#v\n", result)
@@ -56,8 +56,8 @@ func (t *Test) Start() <-chan Result {
 	return nil
 }
 
-func (t *Test) invokeLambda(sqsURL string) {
-	svc := lambda.New(session.New())
+func (t *Test) invokeLambda(awsConfig *aws.Config, sqsURL string) {
+	svc := lambda.New(session.New(), awsConfig)
 
 	resp, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
 		FunctionName: aws.String("goad"),
