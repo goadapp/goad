@@ -69,10 +69,12 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 	}
 
 	defer termbox.Close()
-
-	resultChan := test.Start()
 	termbox.Sync()
 	renderString(0, 0, "Launching on AWS...", coldef, coldef)
+	termbox.Flush()
+
+	resultChan := test.Start()
+
 	_, h := termbox.Size()
 	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
 	termbox.Flush()
