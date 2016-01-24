@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -37,9 +36,7 @@ func main() {
 
 	client := &http.Client{}
 	client.Timeout = clientTimeout
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return errors.New("redirect")
-	}
+
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
 	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion, requestMethod)
 }
