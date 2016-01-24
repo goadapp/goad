@@ -11,6 +11,8 @@ You can run Goad from your machine using your own AWS credentials, and it will a
 
 If you just want to try Goad out, visit the [Goad.io website](https://goad.io) and enter the address of the site you want to test.
 
+![goad CLI interface](./site/src/img/cli.gif)
+
 ## Installation
 
 ### Binary
