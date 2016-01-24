@@ -117,7 +117,7 @@ export default class Results extends React.Component {
         cursor = <span className="blinking-cursor">▊</span>;
       } else {
         if (this.state.data) {
-          socketClass = "float-right text-info glyphicon glyphicon-flash";
+          socketClass = "float-right text-muted glyphicon glyphicon-flash";
         } else {
           socketClass = "float-right text-danger glyphicon glyphicon-remove-sign";
         }
