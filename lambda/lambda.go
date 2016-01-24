@@ -67,9 +67,9 @@ type RequestResult struct {
 }
 
 func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string) {
-	//awsConfig := aws.NewConfig().WithRegion(awsregion)
-	//sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
-	sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
+	awsConfig := aws.NewConfig().WithRegion(awsregion)
+	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
+	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
