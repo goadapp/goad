@@ -35,7 +35,7 @@ func main() {
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
-	flag.StringVar(&regions, "r", "us-east-1", "AWS regions to run in (comma separated, no spaces)")
+	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.Parse()
 
 	if url == "" {
@@ -73,7 +73,7 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 
 	defer termbox.Close()
 	termbox.Sync()
-	renderString(0, 0, "Launching on AWS...", coldef, coldef)
+	renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
 	renderLogo()
 	termbox.Flush()
 
@@ -151,7 +151,7 @@ func renderLogo() {
 // Also clears loading message
 func clearLogo() {
 	for i := 0; i < 8; i++ {
-		renderString(0, i, "                            ", coldef, coldef)
+		renderString(0, i, "                                ", coldef, coldef)
 	}
 }
 
@@ -160,7 +160,7 @@ func renderRegion(data queue.AggData, y int) int {
 	x := 0
 	renderString(x, y, "Region: ", termbox.ColorWhite, termbox.ColorBlue)
 	x += 8
-	regionStr := fmt.Sprintf("%-10s", data.Region)
+	regionStr := fmt.Sprintf("%s", data.Region)
 	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
 	x = 0
 	y++
