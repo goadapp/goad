@@ -26,27 +26,9 @@ func main() {
 	maxRequestCount, err := strconv.Atoi(os.Args[3])
 	sqsurl := os.Args[4]
 	awsregion := os.Args[5]
-	clientTimeout, _ := time.ParseDuration("1s")
-	if len(os.Args) > 6 {
-		newClientTimeout, err := time.ParseDuration(os.Args[6])
-		if err == nil {
-			clientTimeout = newClientTimeout
-		} else {
-			fmt.Printf("Error parsing timeout: %s\n", err)
-			return
-		}
-	}
+	clientTimeout, _ := time.ParseDuration(os.Args[6])
 	fmt.Printf("Using a timeout of %s\n", clientTimeout)
-	reportingFrequency, _ := time.ParseDuration("1s")
-	if len(os.Args) > 7 {
-		newReportingFrequency, err := time.ParseDuration(os.Args[7])
-		if err == nil {
-			reportingFrequency = newReportingFrequency
-		} else {
-			fmt.Printf("Error parsing reporting frequency: %s\n", err)
-			return
-		}
-	}
+	reportingFrequency, _ := time.ParseDuration(os.Args[7])
 	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
 	queueRegion := os.Args[8]
