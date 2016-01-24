@@ -21,7 +21,7 @@ type TestConfig struct {
 	Concurrency    uint
 	TotalRequests  uint
 	RequestTimeout time.Duration
-	Region         string
+	Regions        []string
 }
 
 const nano = 1000000000
@@ -42,8 +42,8 @@ func NewTest(config *TestConfig) (*Test, error) {
 
 // Start a test
 func (t *Test) Start() <-chan queue.RegionsAggData {
-	awsConfig := aws.NewConfig().WithRegion(t.config.Region)
-	infra, err := infrastructure.New(awsConfig)
+	awsConfig := aws.NewConfig().WithRegion(t.config.Regions[0])
+	infra, err := infrastructure.New(t.config.Regions, awsConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,6 +67,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 	lambdas := numberOfLambdas(t.config.Concurrency)
 
 	for i := 0; i < lambdas; i++ {
+		region := t.config.Regions[i%len(t.config.Regions)]
 		requests, requestsRemainder := divide(t.config.TotalRequests, lambdas)
 		concurrency, _ := divide(t.config.Concurrency, lambdas)
 
@@ -75,20 +76,26 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 
 		c := t.config
-		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s",
-			c.URL, concurrency, requests, sqsURL, c.Region, c.RequestTimeout, reportingFrequency(lambdas))
+		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s %s",
+			c.URL, concurrency, requests, sqsURL, region, c.RequestTimeout,
+			reportingFrequency(lambdas), c.Regions[0])
 
-		go t.invokeLambda(awsConfig, cmd)
+		config := aws.NewConfig().WithRegion(region)
+		go t.invokeLambda(config, cmd)
 	}
 }
 
 func (t *Test) invokeLambda(awsConfig *aws.Config, cmd string) {
 	svc := lambda.New(session.New(), awsConfig)
 
-	svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	_, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
 		FunctionName: aws.String("goad"),
 		InvokeArgs:   strings.NewReader(`{"cmd":"` + cmd + `"}`),
 	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func numberOfLambdas(concurrency uint) int {

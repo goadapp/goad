@@ -15,13 +15,13 @@ import (
 type Infrastructure struct {
 	config   *aws.Config
 	queueURL string
+	regions  []string
 }
 
 // New creates the required infrastructure to run the load tests in Lambda
 // functions.
-func New(config *aws.Config) (*Infrastructure, error) {
-
-	infra := &Infrastructure{config: config}
+func New(regions []string, config *aws.Config) (*Infrastructure, error) {
+	infra := &Infrastructure{config: config, regions: regions}
 	if err := infra.setup(); err != nil {
 		return nil, err
 	}
@@ -47,9 +47,11 @@ func (infra *Infrastructure) setup() error {
 	if err != nil {
 		return err
 	}
-	err = infra.createLambdaFunction(roleArn, zip)
-	if err != nil {
-		return err
+	for _, region := range infra.regions {
+		err = infra.createLambdaFunction(region, roleArn, zip)
+		if err != nil {
+			return err
+		}
 	}
 	queueURL, err := infra.createSQSQueue()
 	if err != nil {
@@ -59,8 +61,11 @@ func (infra *Infrastructure) setup() error {
 	return nil
 }
 
-func (infra *Infrastructure) createLambdaFunction(roleArn string, payload []byte) error {
-	svc := lambda.New(session.New(), infra.config)
+func (infra *Infrastructure) createLambdaFunction(region, roleArn string, payload []byte) error {
+	config := new(aws.Config)
+	*config = *infra.config
+	config.WithRegion(region)
+	svc := lambda.New(session.New(), config)
 
 	_, err := svc.GetFunction(&lambda.GetFunctionInput{
 		FunctionName: aws.String("goad"),
@@ -77,8 +82,7 @@ func (infra *Infrastructure) createLambdaFunction(roleArn string, payload []byte
 					Handler:      aws.String("index.handler"),
 					Role:         aws.String(roleArn),
 					Runtime:      aws.String("nodejs"),
-					Description:  aws.String("Description"),
-					MemorySize:   aws.Int64(128),
+					MemorySize:   aws.Int64(1536),
 					Publish:      aws.Bool(true),
 					Timeout:      aws.Int64(300),
 				})
@@ -89,7 +93,7 @@ func (infra *Infrastructure) createLambdaFunction(roleArn string, payload []byte
 						// TODO: limit the number of retries.
 						if awsErr.Code() == "InvalidParameterValueException" {
 							time.Sleep(time.Second)
-							return infra.createLambdaFunction(roleArn, payload)
+							return infra.createLambdaFunction(region, roleArn, payload)
 						}
 					}
 					return err

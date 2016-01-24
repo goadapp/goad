@@ -80,11 +80,11 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 
 	config := goad.TestConfig{
-		url,
-		5,
-		1000,
-		time.Duration(7),
-		"us-east-1",
+		URL:            url,
+		Concurrency:    5,
+		TotalRequests:  1000,
+		RequestTimeout: time.Duration(7),
+		Region:         "us-east-1",
 	}
 
 	test, testerr := goad.NewTest(&config)
