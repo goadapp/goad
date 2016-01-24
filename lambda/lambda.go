@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -89,6 +88,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		var slowest int64
 		var fastest int64
 		var totalTimedOut int
+		var totalConnectionError int
 		for ; i < aggRequestCount && requestsSoFar < totalRequests; i++ {
 			r := <-ch
 			agg[i] = r
@@ -96,14 +96,21 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			if requestsSoFar%10 == 0 {
 				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
 			}
+			if firstRequestTime == 0 {
+				firstRequestTime = r.Time
+			}
+
+			lastRequestTime = r.Time
+
 			if r.Timeout {
 				totalTimedOut++
 				continue
 			}
-
-			if firstRequestTime == 0 {
-				firstRequestTime = r.Time
+			if r.ConnectionError {
+				totalConnectionError++
+				continue
 			}
+
 			if r.ElapsedLastByte > slowest {
 				slowest = r.ElapsedLastByte
 			}
@@ -115,7 +122,6 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				}
 			}
 
-			lastRequestTime = r.Time
 			timeToFirstTotal += r.ElapsedFirstByte
 			totBytesRead += r.Bytes
 			statusStr := strconv.Itoa(r.Status)
@@ -135,6 +141,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		aggData := sqsadaptor.AggData{
 			i,
 			totalTimedOut,
+			totalConnectionError,
 			timeToFirstTotal / int64(i),
 			totBytesRead,
 			statuses,
@@ -183,10 +190,6 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 				}
 			}
 
-			if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
-				fmt.Println("Could be from a Transport.CancelRequest")
-				connectionError = true
-			}
 			if !timedOut {
 				connectionError = true
 			}
