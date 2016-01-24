@@ -56,6 +56,10 @@ body {
     font-family: $font-family-monospace;
     font-size: 12px;
   }
+
+  .reset-button {
+    margin: 15px;
+  }
 }
 
 @keyframes blink {

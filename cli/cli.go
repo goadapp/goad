@@ -184,7 +184,7 @@ func totErrors(data *queue.AggData) int {
 	var okReqs int
 	for statusStr, value := range data.Statuses {
 		status, _ := strconv.Atoi(statusStr)
-		if status >= 200 && status <= 299 {
+		if status < 400 {
 			okReqs += value
 		}
 	}
