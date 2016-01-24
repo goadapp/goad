@@ -72,7 +72,7 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 }
 
 func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
-	lambdas := numberOfLambdas(t.config.Concurrency)
+	lambdas := numberOfLambdas(t.config.Concurrency, len(t.config.Regions))
 
 	for i := 0; i < lambdas; i++ {
 		region := t.config.Regions[i%len(t.config.Regions)]
@@ -115,9 +115,15 @@ func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
 	})
 }
 
-func numberOfLambdas(concurrency uint) int {
+func numberOfLambdas(concurrency uint, numRegions int) int {
+	if numRegions > int(concurrency) {
+		return int(concurrency)
+	}
 	if concurrency/10 > 100 {
 		return 100
+	}
+	if int(concurrency) < 10*numRegions {
+		return numRegions
 	}
 	return int(concurrency-1)/10 + 1
 }
