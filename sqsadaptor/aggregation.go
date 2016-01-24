@@ -1,6 +1,10 @@
 package sqsadaptor
 
-import "time"
+import (
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+)
 
 // AggData type
 type AggData struct {
@@ -45,11 +49,11 @@ func addResult(data *AggData, result *AggData) {
 }
 
 // Aggregate listens for results and sends totals, closing the channel when done
-func Aggregate(outChan chan RegionsAggData, queueURL string, totalExpectedRequests uint) {
+func Aggregate(outChan chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) {
 	defer close(outChan)
 	data := RegionsAggData{make(map[string]AggData)}
 
-	adaptor := NewSQSAdaptor(queueURL)
+	adaptor := NewSQSAdaptor(awsConfig, queueURL)
 	timeoutStart := time.Now()
 	for {
 		result := adaptor.Receive()
