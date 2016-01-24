@@ -97,7 +97,7 @@ Goad takes full advantage of the power of Amazon Lambdas and Go's concurrency fo
 
 Written in pure Go, Goad takes care of instantiating all the AWS resources, collecting results and displaying them. Interestingly, it contains the executable of the Lambda worker, which is also written in Go.
 
-There is also a webapi version, which the [Goad.io] website uses to execute its tests. This streams the results using WebsSockets.
+There is also a webapi version, which the [Goad.io] website uses to execute its tests. This streams the results using WebSockets.
 
 ### Lambda workers
 
