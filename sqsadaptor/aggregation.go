@@ -32,14 +32,17 @@ func addResult(data *AggData, result *AggData) {
 	data.TotalTimedOut += result.TotalTimedOut
 	dataTot64 := int64(data.TotalReqs)
 	resultTot64 := int64(result.TotalReqs)
-	data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
+	if dataTot64 > 0 {
+		data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
+		data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
+		data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+	}
 	data.TotBytesRead += result.TotBytesRead
 
 	for key, value := range result.Statuses {
 		data.Statuses[key] += value
 	}
-	data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
-	data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+
 	if result.Slowest > data.Slowest {
 		data.Slowest = result.Slowest
 	}
