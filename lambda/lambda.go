@@ -47,8 +47,6 @@ func main() {
 	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion)
 }
 
-type Job struct{}
-
 type RequestResult struct {
 	Time             int64  `json:"time"`
 	Host             string `json:"host"`
@@ -67,13 +65,13 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	awsConfig := aws.NewConfig().WithRegion(awsregion)
 	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
 	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
-	jobs := make(chan Job, totalRequests)
+	jobs := make(chan struct{}, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
 	loadTestStartTime := time.Now()
 	var requestsSoFar int
 	for i := 0; i < totalRequests; i++ {
-		jobs <- Job{}
+		jobs <- struct{}{}
 	}
 	close(jobs)
 	fmt.Print("Spawning workers…")
@@ -191,7 +189,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 
 }
 
-func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan Job, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
+func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan struct{}, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
 	defer wg.Done()
 	for _ = range jobs {
 		start := time.Now()
