@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gophergala2016/goad"
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
 	"github.com/gophergala2016/goad/queue"
@@ -133,7 +134,7 @@ func renderRegion(data queue.AggData, y int) int {
 	headingStr := "   TotReqs   TotBytes    AvgTime   AvgReq/s"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr := fmt.Sprintf("%10d %10d   %7.3fs %10.2f", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
+	resultStr := fmt.Sprintf("%10d %10s   %7.3fs %10.2f", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 	headingStr = "   Slowest    Fastest   Timeouts  TotErrors"
@@ -187,7 +188,7 @@ func boldPrintln(msg string) {
 
 func printData(data *queue.AggData) {
 	boldPrintln("   TotReqs   TotBytes    AvgTime   AvgReq/s")
-	fmt.Printf("%10d %10d   %7.3fs %10.2f\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
+	fmt.Printf("%10d %10s   %7.3fs %10.2f\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
 	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
 	fmt.Printf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
 	fmt.Println("")
