@@ -74,7 +74,7 @@ Usage of goad:
       URL to load test (required)
 
 # For example:
-$ goad -n 1000 -c 5 https://example.com
+$ goad -n 1000 -c 5 -u https://example.com
 ```
 
 ## How it works
