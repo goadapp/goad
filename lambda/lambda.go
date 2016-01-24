@@ -101,8 +101,8 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		var totalConnectionError int
 
 		resetStats := false
-
 		for requestsSoFar < totalRequests && !quitting && !resetStats {
+			aggregate := false
 			select {
 			case r := <-ch:
 				i++
@@ -148,12 +148,17 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				requestTimeTotal += r.Elapsed
 				if requestsSoFar == totalRequests {
 					quitting = true
-					continue
 				}
 			case <-ticker.C:
 				if i == 0 {
 					continue
 				}
+				aggregate = true
+			case <-quit:
+				ticker.Stop()
+				quitting = true
+			}
+			if aggregate || quitting {
 				durationNanoSeconds := lastRequestTime - firstRequestTime
 				durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
 				fatalError := ""
@@ -178,10 +183,6 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				}
 				sqsAdaptor.SendResult(aggData)
 				resetStats = true
-				continue
-			case <-quit:
-				ticker.Stop()
-				quitting = true
 			}
 		}
 	}
