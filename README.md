@@ -55,15 +55,19 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 ```sh
 # Get help:
 $ goad -h
-Usage of ./build/osx/x86-64/goad:
+Usage of goad:
   -c uint
       number of concurrent requests (default 10)
+  -m string
+      HTTP method (default "GET")
   -n uint
       number of total requests to make (default 1000)
   -r string
-      AWS region (default "us-east-1")
+      AWS regions to run in (comma separated, no spaces) (default "us-east-1")
   -t uint
       request timeout in seconds (default 15)
+  -u string
+      URL to load test (required)
 
 # For example:
 $ goad -n 1000 -c 5 https://example.com
