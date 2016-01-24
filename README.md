@@ -49,7 +49,7 @@ Goad takes full advantage of the power of Amazon Lambdas for distributed load te
 
 ### Lambda workers
 
-AWS Lamba instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
+AWS Lambda instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
 requests are distributed among multiple Lambda instances each running multiple concurrent goroutines, in order to achieve the desired
 concurrency level with high throughput.
 
