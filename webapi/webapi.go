@@ -109,7 +109,7 @@ func readLoop(c *websocket.Conn) {
 }
 
 func health(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.OK)
+	w.WriteHeader(http.StatusOK)
 }
 
 // Serve waits for connections and serves the results
