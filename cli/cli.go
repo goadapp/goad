@@ -165,6 +165,7 @@ func boldPrintln(msg string) {
 
 func printSummary(result *queue.RegionsAggData) {
 	if len(result.Regions) == 0 {
+		boldPrintln("No results received")
 		return
 	}
 	boldPrintln("Summary")
