@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/gophergala2016/goad"
@@ -48,41 +50,69 @@ func main() {
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)
 
-	start(test, &finalResult)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
+
+	start(test, &finalResult, sigChan)
 }
 
-func start(test *goad.Test, finalResult *queue.RegionsAggData) {
+func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
 	err := termbox.Init()
 	if err != nil {
 		panic(err)
 	}
+
 	defer termbox.Close()
 
 	resultChan := test.Start()
 	termbox.Sync()
-	for result := range resultChan {
-		//		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
-		// sort so that regions always appear in the same order
-		var regions []string
-		for key := range result.Regions {
-			regions = append(regions, key)
-		}
-		sort.Strings(regions)
-		y := 3
-		totalReqs := 0
-		for _, region := range regions {
-			data := result.Regions[region]
-			totalReqs += data.TotalReqs
-			y = renderRegion(data, y)
-			y++
-		}
+	renderString(0, 0, "Launching on AWS...", coldef, coldef)
+	_, h := termbox.Size()
+	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
+	termbox.Flush()
 
-		y = 0
-		percentDone := float64(totalReqs) / float64(result.TotalExpectedRequests)
-		drawProgressBar(percentDone, y)
+	go func() {
+		for {
+			event := termbox.PollEvent()
+			if event.Key == 3 {
+				sigChan <- syscall.SIGINT
+			}
+		}
+	}()
 
-		termbox.Flush()
-		finalResult.Regions = result.Regions
+outer:
+	for {
+		select {
+		case result, ok := <-resultChan:
+			if !ok {
+				break outer
+			}
+			//		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
+			// sort so that regions always appear in the same order
+			var regions []string
+			for key := range result.Regions {
+				regions = append(regions, key)
+			}
+			sort.Strings(regions)
+			y := 3
+			totalReqs := 0
+			for _, region := range regions {
+				data := result.Regions[region]
+				totalReqs += data.TotalReqs
+				y = renderRegion(data, y)
+				y++
+			}
+
+			y = 0
+			percentDone := float64(totalReqs) / float64(result.TotalExpectedRequests)
+			drawProgressBar(percentDone, y)
+
+			termbox.Flush()
+			finalResult.Regions = result.Regions
+
+		case <-sigChan:
+			break outer
+		}
 	}
 }
 
@@ -107,7 +137,7 @@ func renderRegion(data queue.AggData, y int) int {
 
 func drawProgressBar(percent float64, y int) {
 	x := 0
-	percentStr := fmt.Sprintf("%5.1f%%", percent*100)
+	percentStr := fmt.Sprintf("%5.1f%%            ", percent*100)
 	renderString(x, y, percentStr, coldef, coldef)
 	y++
 
@@ -134,6 +164,9 @@ func boldPrintln(msg string) {
 }
 
 func printSummary(result *queue.RegionsAggData) {
+	if len(result.Regions) == 0 {
+		return
+	}
 	boldPrintln("Summary")
 	fmt.Println("")
 	for region, data := range result.Regions {
