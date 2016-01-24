@@ -93,6 +93,12 @@ Goad takes full advantage of the power of Amazon Lambdas for distributed load te
 * [UUID][]
 * [bindata][]
 
+### Goad executable
+
+Written in pure Go, Goad takes care of instantiating all the AWS resources, collecting results and displaying them. Interestingly, it contains the executable of the Lambda worker, which is also written in Go.
+
+There is also a webapi version, which the [Goad.io] website uses to execute its tests. This streams the results using WebsSockets.
+
 ### Lambda workers
 
 AWS Lambda instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
@@ -101,9 +107,9 @@ concurrency level with high throughput.
 
 ### [Goad.io][] site
 
-Because we we wanted to use React and ES6 to build the online demo, we opted to use a Node.js-based toolchain for the website. As far as we could tell, none of static site builders built with Go have built in support for an asset pipeline that would support ES6 modules out of the box or even easily…
+We used React and ES6 to build the online demo, and we used a Node.js-based toolchain for the website. We wanted to use Go, but as far as we could tell none of static site builders built with Go have built in support for an asset pipeline that would support ES6 modules out of the box (or even easily). However, note that the website is mainly a demo and download location, and is not essential to use Goad.
 
-We use WebSockets and React to present the results of the demo load test every few seconds as more results come in.
+The demo uses WebSockets and React to present the results of the demo load test every few seconds as more results come in.
 
 As we wanted to prevent the site from being used as a DDoS tool, the online demo is very limited but hopefully enough to demonstrate the usefulness of the CLI version of Goad.
 
