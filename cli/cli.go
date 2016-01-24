@@ -29,18 +29,16 @@ const coldef = termbox.ColorDefault
 const nano = 1000000000
 
 func main() {
+	flag.StringVar(&url, "u", "", "URL to load test (required)")
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.Parse()
 
-	if len(flag.Args()) < 1 {
-		fmt.Println("You must specify a URL as a last argument")
-		os.Exit(1)
+	if url == "" {
+		flag.Usage()
 	}
-
-	url = flag.Args()[0]
 
 	test, testerr := goad.NewTest(&goad.TestConfig{
 		URL:            url,
