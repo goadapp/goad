@@ -32,6 +32,7 @@ func main() {
 	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
 	queueRegion := os.Args[8]
+	requestMethod := os.Args[9]
 
 	client := &http.Client{}
 	client.Timeout = clientTimeout
@@ -39,7 +40,7 @@ func main() {
 		return errors.New("redirect")
 	}
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
-	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion)
+	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion, requestMethod)
 }
 
 type RequestResult struct {
@@ -56,10 +57,10 @@ type RequestResult struct {
 	State            string `json:"state"`
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string) {
 	awsConfig := aws.NewConfig().WithRegion(queueRegion)
 	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
 	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
+func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string, requestMethod string) {
 	jobs := make(chan struct{}, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
@@ -72,7 +73,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	fmt.Print("Spawning workers…")
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
-		go fetch(loadTestStartTime, client, url, totalRequests, jobs, ch, &wg, awsregion)
+		go fetch(loadTestStartTime, client, url, totalRequests, jobs, ch, &wg, awsregion, requestMethod)
 		fmt.Print(".")
 	}
 	fmt.Println(" done.\nWaiting for results…")
@@ -195,11 +196,11 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 
 }
 
-func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan struct{}, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
+func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan struct{}, ch chan RequestResult, wg *sync.WaitGroup, awsregion string, requestMethod string) {
 	defer wg.Done()
 	for _ = range jobs {
 		start := time.Now()
-		req, err := http.NewRequest("GET", address, nil)
+		req, err := http.NewRequest(requestMethod, address, nil)
 		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		req.Header.Add("Accept-Encoding", "gzip")
 		response, err := client.Do(req)
