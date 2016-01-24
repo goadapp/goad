@@ -4,7 +4,7 @@ var validUrl = require('valid-url');
 export default class Form extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {url: ""};
+    this.state = {url: "https://goad.io"};
   }
 
   handleURLChange(e) {
@@ -39,7 +39,7 @@ export default class Form extends React.Component {
       <form onSubmit={this.handleSubmit.bind(this)}>
         <div className={formGroupClass}>
           <label className="control-label" htmlFor="url">URL</label>
-          <input type="url" className="form-control" id="url" placeholder="https://…" onChange={this.handleURLChange.bind(this)}/>
+          <input value={this.state.url} type="url" autoComplete="off" className="form-control" id="url" placeholder="https://…" onChange={this.handleURLChange.bind(this)}/>
           {helpBlock}
         </div>
         <button type="submit" className="btn btn-danger">Start test</button>
