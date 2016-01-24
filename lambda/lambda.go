@@ -36,7 +36,7 @@ func main() {
 			return
 		}
 	}
-	fmt.Printf("Using a timeout of %d nanoseconds\n", clientTimeout.Nanoseconds())
+	fmt.Printf("Using a timeout of %.2f seconds\n", float32(clientTimeout.Nanoseconds())/float32(1000000000))
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
 		return
@@ -79,11 +79,13 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		jobs <- Job{}
 	}
 	close(jobs)
+	fmt.Print("Spawning workers…")
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
 		go fetch(loadTestStartTime, client, url, totalRequests, jobs, ch, &wg, awsregion)
+		fmt.Print(".")
 	}
-	fmt.Println("Waiting for results…")
+	fmt.Println(" done.\nWaiting for results…")
 
 	ticker := time.NewTicker(5 * time.Second)
 	quit := make(chan struct{})
@@ -194,7 +196,6 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 
 func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan Job, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
 	defer wg.Done()
-	fmt.Printf("Fetching %s\n", address)
 	for _ = range jobs {
 		start := time.Now()
 		req, err := http.NewRequest("GET", address, nil)
