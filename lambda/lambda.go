@@ -229,6 +229,7 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			}
 			elapsedFirstByte = time.Since(start)
 			body, err := ioutil.ReadAll(response.Body)
+			response.Body.Close()
 			bytesRead = len(body) + 1
 			elapsedLastByte = time.Since(start)
 			if err != nil {
