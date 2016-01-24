@@ -30,11 +30,11 @@ func main() {
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
-	flag.StringVar(&region, "r", "us-east-1", "AWS region")
+	flag.StringVar(&region, "r", "us-east-1", "AWS regions to run in")
 	flag.Parse()
 
 	if len(flag.Args()) < 1 {
-		fmt.Println("You must specify a URL")
+		fmt.Println("You must specify a URL as a last argument")
 		os.Exit(1)
 	}
 
