@@ -101,9 +101,8 @@ export default class Results extends React.Component {
 
         Total Requests           ${data["total-reqs"]}
         Total Transferred        ${Humanize.fileSize(data["tot-bytes-read"])}
-        Average Time/Req         ${(data["ave-time-for-req"]/NANO).toFixed(2)} seconds
-        Average Req/s            ${data["ave-req-per-sec"].toFixed(2)}
-        Average Time To 1st Byte ${(data["ave-time-to-first"]/NANO).toFixed(2)} seconds
+        Average Time/Req         ${(data["ave-time-for-req"]/NANO).toFixed(3)} seconds
+        Average Req/s            ${data["ave-req-per-sec"].toFixed(3)}
     `
   }
 
