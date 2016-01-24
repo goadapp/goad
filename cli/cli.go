@@ -39,13 +39,17 @@ func main() {
 
 	url = flag.Args()[0]
 
-	test := goad.NewTest(&goad.TestConfig{
+	test, testerr := goad.NewTest(&goad.TestConfig{
 		URL:            url,
 		Concurrency:    concurrency,
 		TotalRequests:  requests,
 		RequestTimeout: time.Duration(timeout) * time.Second,
 		Region:         region,
 	})
+	if testerr != nil {
+		fmt.Println(testerr)
+		os.Exit(1)
+	}
 
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)

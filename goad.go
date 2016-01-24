@@ -1,6 +1,7 @@
 package goad
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/gophergala2016/goad/queue"
 )
 
+// TestConfig type
 type TestConfig struct {
 	URL            string
 	Concurrency    uint
@@ -21,18 +23,27 @@ type TestConfig struct {
 	Region         string
 }
 
+const nano = 1000000000
+
 func (c *TestConfig) cmd(sqsURL string) string {
 	return fmt.Sprintf("./goad-lambda %s %d %d %s %s", c.URL, c.Concurrency, c.TotalRequests, sqsURL, c.Region)
 }
 
+// Test type
 type Test struct {
 	config *TestConfig
 }
 
-func NewTest(config *TestConfig) *Test {
-	return &Test{config}
+// NewTest returns a configured Test
+func NewTest(config *TestConfig) (*Test, error) {
+	err := config.check()
+	if err != nil {
+		return nil, err
+	}
+	return &Test{config}, nil
 }
 
+// Start a test
 func (t *Test) Start() <-chan queue.RegionsAggData {
 	awsConfig := aws.NewConfig().WithRegion(t.config.Region)
 	infra, err := infrastructure.New(awsConfig)
@@ -63,4 +74,17 @@ func (t *Test) invokeLambda(awsConfig *aws.Config, sqsURL string) {
 		InvokeArgs:   strings.NewReader(`{"cmd":"` + t.config.cmd(sqsURL) + `"}`),
 	})
 	fmt.Println(resp, err)
+}
+
+func (c TestConfig) check() error {
+	if c.Concurrency < 1 || c.Concurrency > 100000 {
+		return errors.New("Invalid concurrency (use 1 - 100000)")
+	}
+	if c.TotalRequests < 1 || c.TotalRequests > 1000000 {
+		return errors.New("Invalid total requests (use 1 - 1000000)")
+	}
+	if c.RequestTimeout.Nanoseconds() < nano || c.RequestTimeout.Nanoseconds() > nano*100 {
+		return errors.New("Invalid timeout (1s - 100s)")
+	}
+	return nil
 }

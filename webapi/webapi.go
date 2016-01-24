@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -85,7 +86,11 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		"eu-west-1",
 	}
 
-	test := goad.NewTest(&config)
+	test, testerr := goad.NewTest(&config)
+	if testerr != nil {
+		fmt.Println(testerr)
+		return
+	}
 	resultChan := test.Start()
 
 	for result := range resultChan {
