@@ -13,11 +13,32 @@ The easiest way is to download a pre-built binary from [Goad.io] or from the [Gi
 
 ### From source
 
-To build from scratch, make sure you have a working Go 1.5 workspace ([instructions](https://golang.org/doc/install)), then fetch the project with `go get`:
+To build the Goad CLI from scratch, make sure you have a working Go 1.5 workspace ([instructions](https://golang.org/doc/install)), then:
 
-```
-go get github.com/gophergala2016/goad
-```
+
+1. Fetch the project with `go get`:
+
+  ```sh
+  go get github.com/gophergala2016/goad
+  ```
+
+2. Install Go [bindata][]:
+
+  ```sh
+  go get -u github.com/jteeuwen/go-bindata/...
+  ```
+
+3. Run make to build for all supported platforms
+
+  ```sh
+  make
+  ```
+
+  Alternatively, run append `osx`, `linux`, or `windows` to just build for one platform, for example:
+
+  ```sh
+  make osx
+  ```
 
 ## Usage
 
