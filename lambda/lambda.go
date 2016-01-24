@@ -88,6 +88,11 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			if requestsSoFar%10 == 0 {
 				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
 			}
+			if r.Timeout {
+				totalTimedOut++
+				continue
+			}
+
 			if firstRequestTime == 0 {
 				firstRequestTime = r.Time
 			}
@@ -113,9 +118,6 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				statuses[statusStr]++
 			}
 			requestTimeTotal += r.Elapsed
-			if r.Timeout {
-				totalTimedOut++
-			}
 		}
 		durationSeconds := lastRequestTime - firstRequestTime
 		if i == 0 {
