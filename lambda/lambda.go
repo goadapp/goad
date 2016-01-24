@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"github.com/gophergala2016/goad/sqsadaptor"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -44,6 +47,7 @@ type RequestResult struct {
 	ElapsedLastByte  int64  `json:"elapsed-last-byte"`
 	Elapsed          int64  `json:"elapsed"`
 	Bytes            int    `json:"bytes"`
+	Timeout          bool   `json:"timeout"`
 	State            string `json:"state"`
 }
 
@@ -76,6 +80,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		var lastRequestTime int64
 		var slowest int64
 		var fastest int64
+		var totalTimedOut int
 		for ; i < aggRequestCount && requestsSoFar < totalRequests; i++ {
 			r := <-ch
 			agg[i] = r
@@ -108,6 +113,9 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				statuses[statusStr]++
 			}
 			requestTimeTotal += r.Elapsed
+			if r.Timeout {
+				totalTimedOut++
+			}
 		}
 		durationSeconds := lastRequestTime - firstRequestTime
 		if i == 0 {
@@ -118,7 +126,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		}
 		aggData := sqsadaptor.AggData{
 			i,
-			0, // totalTimedOut
+			totalTimedOut,
 			timeToFirstTotal / int64(i),
 			totBytesRead,
 			statuses,
@@ -148,10 +156,28 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 		var elapsedFirstByte time.Duration
 		var elapsedLastByte time.Duration
 		var elapsed time.Duration
+		var statusCode int
 		buf := []byte(" ")
+		timedOut := false
 		if err != nil {
-			status = fmt.Sprintf("client.Do() failed: %s\n", err)
+			status = fmt.Sprintf("ERROR: %s\n", err)
+			//fmt.Println(status)
+			switch err := err.(type) {
+			case *url.Error:
+				if err, ok := err.Err.(net.Error); ok && err.Timeout() {
+					timedOut = true
+				}
+			case net.Error:
+				if err.Timeout() {
+					timedOut = true
+				}
+			}
+
+			if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+				fmt.Println("Could be from a Transport.CancelRequest")
+			}
 		} else {
+			statusCode = response.StatusCode
 			_, err = response.Body.Read(buf)
 			if err != nil {
 				status = fmt.Sprintf("reading first byte failed: %s\n", err)
@@ -170,11 +196,12 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 			start.Unix(),
 			req.URL.Host,
 			req.Method,
-			response.StatusCode,
+			statusCode,
 			elapsed.Nanoseconds(),
 			elapsedFirstByte.Nanoseconds(),
 			elapsedLastByte.Nanoseconds(),
 			len(buf),
+			timedOut,
 			status,
 		}
 		ch <- result
