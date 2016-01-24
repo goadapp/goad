@@ -53,8 +53,14 @@ func addResult(data *AggData, result *AggData) {
 }
 
 // Aggregate listens for results and sends totals, closing the channel when done
-func Aggregate(outChan chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) {
-	defer close(outChan)
+func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) chan RegionsAggData {
+	results := make(chan RegionsAggData)
+	go aggregate(results, awsConfig, queueURL, totalExpectedRequests)
+	return results
+}
+
+func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) {
+	defer close(results)
 	data := RegionsAggData{make(map[string]AggData)}
 
 	adaptor := NewSQSAdaptor(awsConfig, queueURL)
@@ -69,7 +75,7 @@ func Aggregate(outChan chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 			}
 			addResult(&regionData, result)
 			data.Regions[result.Region] = regionData
-			outChan <- data
+			results <- data
 			timeoutStart = time.Now()
 		} else {
 			waited := time.Since(timeoutStart)

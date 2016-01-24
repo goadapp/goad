@@ -13,8 +13,6 @@ import (
 	"github.com/gophergala2016/goad/queue"
 )
 
-//type Result struct{}
-
 type TestConfig struct {
 	URL            string
 	Concurrency    uint
@@ -41,13 +39,18 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//	defer infra.Clean()
 
 	t.invokeLambda(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
-	go queue.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
+	go func() {
+		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.config.TotalRequests) {
+			results <- result
+		}
+		infra.Clean()
+		close(results)
+	}()
 
 	return results
 }
