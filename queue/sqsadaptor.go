@@ -133,5 +133,5 @@ func (adaptor DummyAdaptor) SendResult(result AggData) {
 		fmt.Println(jsonerr)
 		return
 	}
-	fmt.Println(str)
+	fmt.Println("\n" + str)
 }
