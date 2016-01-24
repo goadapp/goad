@@ -47,15 +47,17 @@ Goad takes full advantage of the power of Amazon Lambdas for distributed load te
 * [UUID][]
 * [bindata][]
 
+### Lambda workers
+
+AWS Lamba instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
+requests are distributed among multiple Lambda instances each running multiple concurrent goroutines, in order to achieve the desired
+concurrency level with high throughput.
+
 ### [Goad.io][] site
 
 Because we we wanted to use React and ES6 to build the online demo, we opted to use a Node.js-based toolchain for the website. As far as we could tell, none of static site builders built with Go have built in support for an asset pipeline that would support ES6 modules out of the box or even easily…
 
 We use WebSockets and React to present the results of the demo load test every few seconds as more results come in.
-
-AWS Lamba instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
-requests are distributed among multiple Lambda instances each running multiple concurrent goroutines, in order to achieve the desired
-concurrency level with high throughput.
 
 As we wanted to prevent the site from being used as a DDoS tool, the online demo is very limited but hopefully enough to demonstrate the usefulness of the CLI version of Goad.
 
