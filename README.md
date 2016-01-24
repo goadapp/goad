@@ -15,7 +15,7 @@ load testing tool built in Go for the 2016 [Gopher Gala][].
 * [Termbox][]
 * [UUID][]
 
-## Goad.io site
+### Goad.io site
 
 * [WebPack][]
 * [React][]
