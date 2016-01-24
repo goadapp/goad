@@ -131,10 +131,10 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
 	x = 0
 	y++
-	headingStr := "   TotReqs   TotBytes    AvgTime   AvgReq/s"
+	headingStr := "   TotReqs   TotBytes    AvgTime   AvgReq/s  AvgKbps/s"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr := fmt.Sprintf("%10d %10s   %7.3fs %10.2f", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
+	resultStr := fmt.Sprintf("%10d %10s   %7.3fs %10.2f %10.2f", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, data.AveKBytesPerSec)
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 	headingStr = "   Slowest    Fastest   Timeouts  TotErrors"
@@ -160,20 +160,20 @@ func totErrors(data *queue.AggData) int {
 
 func drawProgressBar(percent float64, y int) {
 	x := 0
+	width := 52
 	percentStr := fmt.Sprintf("%5.1f%%            ", percent*100)
 	renderString(x, y, percentStr, coldef, coldef)
 	y++
-
-	hashes := int(percent * 50)
-	if percent > 0.98 {
-		hashes = 50
+	hashes := int(percent * float64(width))
+	if percent > 0.99 {
+		hashes = width
 	}
 	renderString(x, y, "[", coldef, coldef)
 
 	for x++; x <= hashes; x++ {
 		renderString(x, y, "#", coldef, coldef)
 	}
-	renderString(51, y, "]", coldef, coldef)
+	renderString(width+1, y, "]", coldef, coldef)
 }
 
 func renderString(x int, y int, str string, f termbox.Attribute, b termbox.Attribute) {
@@ -187,8 +187,8 @@ func boldPrintln(msg string) {
 }
 
 func printData(data *queue.AggData) {
-	boldPrintln("   TotReqs   TotBytes    AvgTime   AvgReq/s")
-	fmt.Printf("%10d %10s   %7.3fs %10.2f\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec)
+	boldPrintln("   TotReqs   TotBytes    AvgTime   AvgReq/s  AvgKbps/s")
+	fmt.Printf("%10d %10s   %7.3fs %10.2f %10.2f\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, data.AveKBytesPerSec)
 	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
 	fmt.Printf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
 	fmt.Println("")

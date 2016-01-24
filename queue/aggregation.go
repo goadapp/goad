@@ -50,6 +50,7 @@ func addResult(data *AggData, result *AggData) {
 		data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
 		data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
 		data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+		data.AveKBytesPerSec = (data.AveKBytesPerSec*float32(initialDataTot) + result.AveKBytesPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
 	}
 	data.TotBytesRead += result.TotBytesRead
 
