@@ -173,6 +173,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 					statuses,
 					requestTimeTotal / int64(i),
 					float32(i) / durationSeconds,
+					(float32(totBytesRead) / durationSeconds) / 1024.0,
 					slowest,
 					fastest,
 					awsregion,

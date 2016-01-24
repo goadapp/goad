@@ -16,6 +16,7 @@ type AggData struct {
 	Statuses             map[string]int `json:"statuses"`
 	AveTimeForReq        int64          `json:"ave-time-for-req"`
 	AveReqPerSec         float32        `json:"ave-req-per-sec"`
+	AveKBytesPerSec      float32        `json:"ave-kbytes-per-sec"`
 	Slowest              int64          `json:"slowest"`
 	Fastest              int64          `json:"fastest"`
 	Region               string         `json:"region"`
