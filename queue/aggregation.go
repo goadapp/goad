@@ -29,6 +29,16 @@ type RegionsAggData struct {
 	TotalExpectedRequests uint
 }
 
+func (d *RegionsAggData) allRequestsReceived() bool {
+	var requests uint
+
+	for _, region := range d.Regions {
+		requests += uint(region.TotalReqs)
+	}
+
+	return requests == d.TotalExpectedRequests
+}
+
 func addResult(data *AggData, result *AggData) {
 	initialDataTot := data.TotalReqs
 	initialDataTot64 := int64(data.TotalReqs)
@@ -79,7 +89,7 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 			addResult(&regionData, result)
 			data.Regions[result.Region] = regionData
 			results <- data
-			if uint(regionData.TotalReqs) == totalExpectedRequests {
+			if data.allRequestsReceived() {
 				break
 			}
 			timeoutStart = time.Now()
