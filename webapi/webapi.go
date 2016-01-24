@@ -84,7 +84,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		Concurrency:    5,
 		TotalRequests:  1000,
 		RequestTimeout: time.Duration(7),
-		Region:         "us-east-1",
+		Regions:        []string{"us-east-1"},
 	}
 
 	test, testerr := goad.NewTest(&config)
