@@ -28,7 +28,7 @@ func main() {
 	awsregion := os.Args[5]
 	clientTimeout, _ := time.ParseDuration("1s")
 	if len(os.Args) >= 7 {
-		clientTimeout, _ = time.ParseDuration(os.args[6])
+		clientTimeout, _ = time.ParseDuration(os.Args[6])
 	}
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
