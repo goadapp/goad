@@ -84,7 +84,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		Concurrency:    5,
 		TotalRequests:  1000,
 		RequestTimeout: time.Duration(5 * time.Second),
-		Regions:        []string{"us-east-1"},
+		Regions:        []string{"us-east-1", "eu-west-1"},
 		Method:         "GET",
 	}
 
