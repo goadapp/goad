@@ -86,9 +86,11 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	}
 	fmt.Println("Waiting for results…")
 
-	for requestsSoFar < totalRequests {
-		var agg [100]RequestResult
-		aggRequestCount := len(agg)
+	ticker := time.NewTicker(5 * time.Second)
+	quit := make(chan struct{})
+	quitting := false
+
+	for requestsSoFar < totalRequests && !quitting {
 		i := 0
 
 		var timeToFirstTotal int64
@@ -101,72 +103,91 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		var fastest int64
 		var totalTimedOut int
 		var totalConnectionError int
-		for ; i < aggRequestCount && requestsSoFar < totalRequests; i++ {
-			r := <-ch
-			agg[i] = r
-			requestsSoFar++
-			if requestsSoFar%10 == 0 {
-				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
-			}
-			if firstRequestTime == 0 {
-				firstRequestTime = r.Time
-			}
 
-			lastRequestTime = r.Time
+		resetStats := false
 
-			if r.Timeout {
-				totalTimedOut++
-				continue
-			}
-			if r.ConnectionError {
-				totalConnectionError++
-				continue
-			}
-
-			if r.ElapsedLastByte > slowest {
-				slowest = r.ElapsedLastByte
-			}
-			if fastest == 0 {
-				fastest = r.ElapsedLastByte
-			} else {
-				if r.ElapsedLastByte < fastest {
-					fastest = r.ElapsedLastByte
+		for requestsSoFar < totalRequests && !quitting && !resetStats {
+			select {
+			case r := <-ch:
+				i++
+				requestsSoFar++
+				if requestsSoFar%10 == 0 {
+					fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
 				}
-			}
+				if firstRequestTime == 0 {
+					firstRequestTime = r.Time
+				}
 
-			timeToFirstTotal += r.ElapsedFirstByte
-			totBytesRead += r.Bytes
-			statusStr := strconv.Itoa(r.Status)
-			_, ok := statuses[statusStr]
-			if !ok {
-				statuses[statusStr] = 1
-			} else {
-				statuses[statusStr]++
+				lastRequestTime = r.Time
+
+				if r.Timeout {
+					totalTimedOut++
+					continue
+				}
+				if r.ConnectionError {
+					totalConnectionError++
+					continue
+				}
+
+				if r.ElapsedLastByte > slowest {
+					slowest = r.ElapsedLastByte
+				}
+				if fastest == 0 {
+					fastest = r.ElapsedLastByte
+				} else {
+					if r.ElapsedLastByte < fastest {
+						fastest = r.ElapsedLastByte
+					}
+				}
+
+				timeToFirstTotal += r.ElapsedFirstByte
+				totBytesRead += r.Bytes
+				statusStr := strconv.Itoa(r.Status)
+				_, ok := statuses[statusStr]
+				if !ok {
+					statuses[statusStr] = 1
+				} else {
+					statuses[statusStr]++
+				}
+				requestTimeTotal += r.Elapsed
+				if requestsSoFar == totalRequests {
+					quitting = true
+					continue
+				}
+			case <-ticker.C:
+				if i == 0 {
+					continue
+				}
+				durationNanoSeconds := lastRequestTime - firstRequestTime
+				durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
+				fatalError := ""
+				if (totalTimedOut + totalConnectionError) > i/2 {
+					fatalError = "Over 50% of requests failed, aborting"
+					quitting = true
+				}
+				aggData := queue.AggData{
+					i,
+					totalTimedOut,
+					totalConnectionError,
+					timeToFirstTotal / int64(i),
+					totBytesRead,
+					statuses,
+					requestTimeTotal / int64(i),
+					float32(i) / durationSeconds,
+					slowest,
+					fastest,
+					awsregion,
+					fatalError,
+				}
+				sqsAdaptor.SendResult(aggData)
+				resetStats = true
+				continue
+			case <-quit:
+				ticker.Stop()
+				quitting = true
 			}
-			requestTimeTotal += r.Elapsed
 		}
-		if i == 0 {
-			continue
-		}
-		durationNanoSeconds := lastRequestTime - firstRequestTime
-		durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
-		aggData := queue.AggData{
-			i,
-			totalTimedOut,
-			totalConnectionError,
-			timeToFirstTotal / int64(i),
-			totBytesRead,
-			statuses,
-			requestTimeTotal / int64(i),
-			float32(i) / durationSeconds,
-			slowest,
-			fastest,
-			awsregion,
-		}
-		sqsAdaptor.SendResult(aggData)
 	}
-	fmt.Printf("\nWaiting for workers…")
-	wg.Wait()
 	fmt.Printf("\nYay🎈  - %d requests completed\n", requestsSoFar)
 
 }

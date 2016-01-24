@@ -19,6 +19,7 @@ type AggData struct {
 	Slowest              int64          `json:"slowest"`
 	Fastest              int64          `json:"fastest"`
 	Region               string         `json:"region"`
+	FatalError           string         `json:"fatal-error"`
 }
 
 // RegionsAggData type
