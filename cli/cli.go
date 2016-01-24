@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gophergala2016/goad"
+	"github.com/nsf/termbox-go"
 )
 
 var (
@@ -17,7 +18,13 @@ var (
 	region      string
 )
 
+const coldef = termbox.ColorDefault
+const nano = 1000000000
+
 func main() {
+	termbox.Init()
+	defer termbox.Close()
+
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
@@ -40,8 +47,29 @@ func main() {
 	})
 
 	resultChan := test.Start()
-
+	termbox.Sync()
 	for result := range resultChan {
-		fmt.Printf("%#v\n", result)
+		//		fmt.Printf("%#v\n", result)
+		x := 0
+		y := 0
+		// must sort these somehow
+		for key, value := range result.Regions {
+			regionStr := fmt.Sprintf("%-10s", key)
+			for i, c := range regionStr {
+				termbox.SetCell(x+i, y, c, coldef, coldef)
+			}
+			y++
+			headingStr := "   TotReqs   TotBytes  AveTime    AveReq/s Ave1stByte"
+			for i, c := range headingStr {
+				termbox.SetCell(x+i, y, c, coldef, coldef)
+			}
+			y++
+			resultStr := fmt.Sprintf("%10d %10d %7.2fs %10.2f   %7.2fs", value.TotalReqs, value.TotBytesRead, float64(value.AveTimeForReq)/nano, value.AveReqPerSec, float64(value.AveTimeToFirst)/nano)
+			x = 0
+			for i, c := range resultStr {
+				termbox.SetCell(x+i, y, c, coldef, coldef)
+			}
+			termbox.Flush()
+		}
 	}
 }
