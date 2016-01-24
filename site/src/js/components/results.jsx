@@ -1,5 +1,8 @@
-import React from 'react';
+import React from "react";
 var URI = require("urijs");
+var Humanize = require("humanize-plus");
+
+const NANO=1000000000;
 
 export default class Results extends React.Component {
   requestResults() {
@@ -96,11 +99,11 @@ export default class Results extends React.Component {
   formatRegionData(region, data) {
     return `Region: ${region}
 
-        Total Reqs               ${data["total-reqs"]}
-        Total Bytes              ${data["tot-bytes-read"]}
-        Average Time             ${data["ave-time-for-req"]}
-        Average Req/s            ${data["ave-req-per-sec"]}
-        Average Time To 1st Byte ${data["ave-time-to-first"]}
+        Total Requests           ${data["total-reqs"]}
+        Total Transferred        ${Humanize.fileSize(data["tot-bytes-read"])}
+        Average Time/Req         ${(data["ave-time-for-req"]/NANO).toFixed(2)} seconds
+        Average Req/s            ${data["ave-req-per-sec"].toFixed(2)}
+        Average Time To 1st Byte ${(data["ave-time-to-first"]/NANO).toFixed(2)} seconds
     `
   }
 
