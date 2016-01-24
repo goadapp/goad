@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gophergala2016/goad/sqsadaptor"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -12,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/gophergala2016/goad/sqsadaptor"
 )
 
 func main() {
@@ -52,7 +54,8 @@ type RequestResult struct {
 }
 
 func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string) {
-	sqsAdaptor := sqsadaptor.NewSQSAdaptor(sqsurl)
+	awsConfig := aws.NewConfig().WithRegion(awsregion)
+	sqsAdaptor := sqsadaptor.NewSQSAdaptor(awsConfig, sqsurl)
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
