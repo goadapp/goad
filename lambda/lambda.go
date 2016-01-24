@@ -172,6 +172,16 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			if aggregate || quitting {
 				durationNanoSeconds := lastRequestTime - firstRequestTime
 				durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
+				var reqPerSec float32
+				var kbPerSec float32
+				if durationSeconds > 0 {
+					reqPerSec = float32(i) / durationSeconds
+					kbPerSec = (float32(totBytesRead) / durationSeconds) / 1024.0
+				} else {
+					reqPerSec = 0
+					kbPerSec = 0
+				}
+
 				fatalError := ""
 				if (totalTimedOut + totalConnectionError) > i/2 {
 					fatalError = "Over 50% of requests failed, aborting"
@@ -185,8 +195,8 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 					totBytesRead,
 					statuses,
 					requestTimeTotal / int64(i),
-					float32(i) / durationSeconds,
-					(float32(totBytesRead) / durationSeconds) / 1024.0,
+					reqPerSec,
+					kbPerSec,
 					slowest,
 					fastest,
 					awsregion,
@@ -236,13 +246,13 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			}
 		} else {
 			statusCode = response.StatusCode
+			elapsedFirstByte = time.Since(start)
 			_, err = response.Body.Read(buf)
 			firstByteRead := true
 			if err != nil {
 				status = fmt.Sprintf("reading first byte failed: %s\n", err)
 				firstByteRead = false
 			}
-			elapsedFirstByte = time.Since(start)
 			body, err := ioutil.ReadAll(response.Body)
 			response.Body.Close()
 			if firstByteRead {
@@ -250,12 +260,15 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			}
 			elapsedLastByte = time.Since(start)
 			if err != nil {
+				// todo: detect timeout here as well
 				status = fmt.Sprintf("reading response body failed: %s\n", err)
+				connectionError = true
 			} else {
 				status = "Success"
 			}
 			elapsed = time.Since(start)
 		}
+		//fmt.Printf("Request end: %d, elapsed: %d\n", time.Now().Sub(loadTestStartTime).Nanoseconds(), elapsed.Nanoseconds())
 		result := RequestResult{
 			start.Sub(loadTestStartTime).Nanoseconds(),
 			req.URL.Host,
