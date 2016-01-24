@@ -20,7 +20,7 @@ func main() {
 	address := os.Args[1]
 	concurrencycount, err := strconv.Atoi(os.Args[2])
 	if err != nil {
-		fmt.Printf("ERROR %s\n", err)
+		fmt.Printf("Error reading concurrency level: %s\n", err)
 		return
 	}
 	maxRequestCount, err := strconv.Atoi(os.Args[3])
@@ -37,10 +37,7 @@ func main() {
 		}
 	}
 	fmt.Printf("Using a timeout of %.2f seconds\n", float32(clientTimeout.Nanoseconds())/float32(1000000000))
-	if err != nil {
-		fmt.Printf("ERROR %s\n", err)
-		return
-	}
+
 	client := &http.Client{}
 	client.Timeout = clientTimeout
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
