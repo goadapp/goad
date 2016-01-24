@@ -3,17 +3,15 @@ var URI = require("urijs");
 
 export default class Results extends React.Component {
   requestResults() {
-    // curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
-    // -H "Host: api.goad.io" -H "Origin: https://api.goad.io" \
-    //-H "Sec-Websocket-Version: 13" -H "Sec-Websocket-Key: 1" \
-    // "https://api.goad.io/goad?url=http://dll.nu&c=5&tot=1000&timeout=5"
-
-    var wsURI = URI("wss://api.goad.io/goad").query({
+    var options = {
       url: this.props.url,
       c: 5,
       tot: 1000,
       timeout: 5
-    });
+    }
+    this.setState(options);
+
+    var wsURI = URI("wss://api.goad.io/goad").query(options);
 
     var socket = new WebSocket(wsURI.toString());
 
@@ -82,8 +80,6 @@ export default class Results extends React.Component {
 
   resultsFormatter() {
     if (this.state.data) {
-      // return `Summary`;
-
       const data = this.state.data;
       var regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-1"].map(name => {
         if (data.Regions[name]) {
@@ -96,10 +92,6 @@ export default class Results extends React.Component {
       return "No results";
     }
   }
-
-  // Region: us-east-1
-  //   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte
-  //      1000   18323910    0.18s      54.83      0.18s
 
   formatRegionData(region, data) {
     return `Region: ${region}
@@ -134,7 +126,7 @@ export default class Results extends React.Component {
     return (
       <div className="panel panel-results test-results">
         <div className="panel-heading">
-          <h3 className="panel-title">$ goad -n 1000 -c 10 -m GET {this.props.url} {socket}</h3>
+          <h3 className="panel-title">$ goad -n {this.state.tot} -c {this.state.c} -m GET {this.props.url} {socket}</h3>
         </div>
         <div className="panel-body">
           <pre>{this.resultsHandler()}{cursor}</pre>
