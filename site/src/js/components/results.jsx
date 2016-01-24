@@ -106,9 +106,14 @@ export default class Results extends React.Component {
     `
   }
 
+  // handleResetClick() {
+  //   this.props.onReset();
+  // }
+
   render() {
     var cursor = <span />;
     var socketClass = "float-right glyphicon glyphicon-remove-sign";
+    var resetClass = "reset-button btn btn-danger btn-xs hidden";
 
     if (this.state) {
       if (this.state.socketOpen) {
@@ -117,8 +122,10 @@ export default class Results extends React.Component {
       } else {
         if (this.state.data) {
           socketClass = "float-right text-muted glyphicon glyphicon-flash";
+          resetClass = "reset-button btn btn-danger btn-xs"
         } else {
           socketClass = "float-right text-danger glyphicon glyphicon-remove-sign";
+          resetClass = "reset-button btn btn-danger btn-xs"
         }
       }
     }
@@ -132,6 +139,7 @@ export default class Results extends React.Component {
         </div>
         <div className="panel-body">
           <pre>{this.resultsHandler()}{cursor}</pre>
+          <button className={resetClass} type="submit" onClick={this.props.onReset}>Reset</button>
         </div>
       </div>
     );
