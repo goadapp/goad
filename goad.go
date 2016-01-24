@@ -48,9 +48,7 @@ func (t *Test) Start() <-chan sqsadaptor.RegionsAggData {
 	results := make(chan sqsadaptor.RegionsAggData)
 
 	go sqsadaptor.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
-	//	for result := range results {
-	//		fmt.Printf("%#v\n", result)
-	//	}
+
 	return results
 }
 

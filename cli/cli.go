@@ -38,5 +38,10 @@ func main() {
 		RequestTimeout: time.Duration(timeout) * time.Second,
 		Region:         region,
 	})
-	test.Start()
+
+	resultChan := test.Start()
+
+	for result := range resultChan {
+		fmt.Printf("%#v\n", result)
+	}
 }
