@@ -34,19 +34,27 @@ html
               .col-md-4
                 img.goad src="img/spirit-animal.svg" alt="Goad logo"
 
-      #demo.row
-        .col-md-8.col-md-offset-2
-          markdown:
-            ## Demo
+      #demo
+        .row
+          .col-md-8.col-md-offset-2
+            markdown:
+              ## Demo
 
-            Use this online demo to give Goad a try without having to install anything.
+              Use this online demo to give Goad a try without having to install anything.
 
-            As we don't want this to turn into a DDoS-on-demand tool, this
-            online version of Goad is intentionally limited. The CLI version of
-            Goad is more fully featured and can do up to 100,000 requests per
-            second.
+              As we don't want this to turn into a DDoS-on-demand tool, this
+              online version of Goad is intentionally limited. The CLI version of
+              Goad is more fully featured and can do up to 100,000 requests per
+              second.
 
-          #demo-app
+            #demo-app
+
+        .row
+          .col-md-10.col-md-offset-1
+            .alert.alert-warning role="alert"
+              span.glyphicon.glyphicon-warning-sign aria-hidden="true"
+              | &#32;Sites with active DDoS protection or redirects (such as google.com) are known to not work properly
+
       hr
 
       #install.row
