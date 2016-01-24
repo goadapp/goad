@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/gophergala2016/goad"
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
+	"github.com/gophergala2016/goad/queue"
 )
 
 var (
@@ -22,9 +24,6 @@ const coldef = termbox.ColorDefault
 const nano = 1000000000
 
 func main() {
-	termbox.Init()
-	defer termbox.Close()
-
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
@@ -46,30 +45,72 @@ func main() {
 		Region:         region,
 	})
 
+	var finalResult queue.RegionsAggData
+	defer printSummary(&finalResult)
+
+	start(test, &finalResult)
+}
+
+func start(test *goad.Test, finalResult *queue.RegionsAggData) {
+	err := termbox.Init()
+	if err != nil {
+		panic(err)
+	}
+	defer termbox.Close()
+
 	resultChan := test.Start()
 	termbox.Sync()
 	for result := range resultChan {
-		//		fmt.Printf("%#v\n", result)
-		x := 0
-		y := 0
-		// must sort these somehow
-		for key, value := range result.Regions {
-			regionStr := fmt.Sprintf("%-10s", key)
-			for i, c := range regionStr {
-				termbox.SetCell(x+i, y, c, coldef, coldef)
-			}
-			y++
-			headingStr := "   TotReqs   TotBytes  AveTime    AveReq/s Ave1stByte"
-			for i, c := range headingStr {
-				termbox.SetCell(x+i, y, c, coldef, coldef)
-			}
-			y++
-			resultStr := fmt.Sprintf("%10d %10d %7.2fs %10.2f   %7.2fs", value.TotalReqs, value.TotBytesRead, float64(value.AveTimeForReq)/nano, value.AveReqPerSec, float64(value.AveTimeToFirst)/nano)
-			x = 0
-			for i, c := range resultStr {
-				termbox.SetCell(x+i, y, c, coldef, coldef)
-			}
-			termbox.Flush()
+		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
+		// sort so that regions always appear in the same order
+		var regions []string
+		for key := range result.Regions {
+			regions = append(regions, key)
 		}
+		sort.Strings(regions)
+		y := 0
+		for _, region := range regions {
+			data := result.Regions[region]
+			y = renderRegion(data, y)
+			y++
+		}
+		termbox.Flush()
+		finalResult.Regions = result.Regions
+	}
+}
+
+// renderRegion returns the y for the next empty line
+func renderRegion(data queue.AggData, y int) int {
+	x := 0
+	renderString(x, y, "Region: ", termbox.ColorWhite, termbox.ColorBlue)
+	x += 8
+	regionStr := fmt.Sprintf("%-10s", data.Region)
+	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
+	x = 0
+	y++
+	headingStr := "   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte"
+	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
+	y++
+	resultStr := fmt.Sprintf("%10d %10d %7.2fs %10.2f   %7.2fs", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
+	x = 0
+	renderString(x, y, resultStr, coldef, coldef)
+	y++
+	return y
+}
+
+func renderString(x int, y int, str string, f termbox.Attribute, b termbox.Attribute) {
+	for i, c := range str {
+		termbox.SetCell(x+i, y, c, f, b)
+	}
+}
+
+func printSummary(result *queue.RegionsAggData) {
+	fmt.Println("Summary")
+	fmt.Println("")
+	for region, data := range result.Regions {
+		fmt.Println("Region: " + region)
+		fmt.Println("   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte")
+		fmt.Printf("%10d %10d %7.2fs %10.2f   %7.2fs\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
+		fmt.Println("")
 	}
 }
