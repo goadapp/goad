@@ -1,6 +1,5 @@
 import React from "react";
 var validUrl = require('valid-url');
-var request = require('superagent');
 
 export default class Form extends React.Component {
   constructor(props) {
@@ -20,11 +19,6 @@ export default class Form extends React.Component {
 
     // TODO: Use a real API URL
     if (validUrl.isWebUri(this.state.url)) {
-      // request.post("http://httpbin.org/post").send({url: this.state.url}).end(function(err, res){
-      //   if (typeof(self.props.onUpdate) == "function") {
-      //     self.props.onUpdate(err, res, self.state)
-      //   }
-      // });
       self.props.onUpdate(self.state)
     }
   }
