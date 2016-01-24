@@ -40,6 +40,8 @@ To build the Goad CLI from scratch, make sure you have a working Go 1.5 workspac
   make osx
   ```
 
+4. You'll find your `goad` binary in the `build` folder…
+
 ## Usage
 
 ### AWS credentials
