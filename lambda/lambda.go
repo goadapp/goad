@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +44,9 @@ func main() {
 	}
 	client := &http.Client{}
 	client.Timeout = clientTimeout
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return errors.New("redirect")
+	}
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
 	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion)
 }
@@ -183,9 +188,8 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		buf := []byte(" ")
 		timedOut := false
 		connectionError := false
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "redirect") {
 			status = fmt.Sprintf("ERROR: %s\n", err)
-			//fmt.Println(status)
 			switch err := err.(type) {
 			case *url.Error:
 				if err, ok := err.Err.(net.Error); ok && err.Timeout() {
