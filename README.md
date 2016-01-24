@@ -5,6 +5,8 @@ load testing tool built in Go for the 2016 [Gopher Gala][].
 
 ![Go + Load ⇒ Goad](./site/src/img/go-plus-load.png)
 
+Goad allows you to load test your websites from all over the world whilst costing you the tiniest fractions of a penny by using AWS Lambda in multiple regions simultaneously.
+
 ## Installation
 
 ### Binary
