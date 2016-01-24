@@ -128,7 +128,7 @@ export default class Results extends React.Component {
     return (
       <div className="panel panel-results test-results">
         <div className="panel-heading">
-          <h3 className="panel-title">$ goad -n {this.state.tot} -c {this.state.c} -m GET -u "{this.props.url}" {socket}</h3>
+          <h3 className="panel-title">$ goad -n {this.state.tot} -c {this.state.c} -r us-east-1,eu-west-1 -m GET -u "{this.props.url}" {socket}</h3>
         </div>
         <div className="panel-body">
           <pre>{this.resultsHandler()}{cursor}</pre>

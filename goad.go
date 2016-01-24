@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
@@ -33,6 +34,13 @@ type invokeArgs struct {
 }
 
 const nano = 1000000000
+
+var supportedRegions = []string{
+	"us-east-1",
+	"us-west-2",
+	"eu-west-1",
+	"ap-northeast-1",
+}
 
 // Test type
 type Test struct {
@@ -72,7 +80,7 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 }
 
 func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
-	lambdas := numberOfLambdas(t.config.Concurrency)
+	lambdas := numberOfLambdas(t.config.Concurrency, len(t.config.Regions))
 
 	for i := 0; i < lambdas; i++ {
 		region := t.config.Regions[i%len(t.config.Regions)]
@@ -115,9 +123,15 @@ func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
 	})
 }
 
-func numberOfLambdas(concurrency uint) int {
+func numberOfLambdas(concurrency uint, numRegions int) int {
+	if numRegions > int(concurrency) {
+		return int(concurrency)
+	}
 	if concurrency/10 > 100 {
 		return 100
+	}
+	if int(concurrency) < 10*numRegions {
+		return numRegions
 	}
 	return int(concurrency-1)/10 + 1
 }
@@ -140,6 +154,17 @@ func (c TestConfig) check() error {
 	}
 	if c.RequestTimeout.Nanoseconds() < nano || c.RequestTimeout.Nanoseconds() > nano*100 {
 		return errors.New("Invalid timeout (1s - 100s)")
+	}
+	for _, region := range c.Regions {
+		supportedRegionFound := false
+		for _, supported := range supportedRegions {
+			if region == supported {
+				supportedRegionFound = true
+			}
+		}
+		if !supportedRegionFound {
+			return fmt.Errorf("Unsupported region: %s. Supported regions are: %s.", region, strings.Join(supportedRegions, ", "))
+		}
 	}
 	return nil
 }
