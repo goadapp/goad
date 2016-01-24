@@ -19,14 +19,24 @@ export default class Results extends React.Component {
 
     socket.onopen = event => {
       this.setState({
-        socketOpen: true
+        socketOpen: true,
+        error: null
       });
       this.socket = socket;
     };
 
     socket.onclose = event => {
       this.setState({
-        socketOpen: false
+        socketOpen: false,
+        error: null
+      });
+    }
+
+    socket.onerror = event => {
+      this.setState({
+        socketOpen: socket.readyState == WebSocket.OPEN,
+        error: true,
+        errorData: event.data
       });
     }
 
@@ -34,7 +44,10 @@ export default class Results extends React.Component {
   }
 
   handleMessage(event) {
-    console.log("Message", event)
+    const data = JSON.parse(event.data);
+    this.setState({
+      data: data
+    });
   }
 
   componentWillMount() {
@@ -47,11 +60,75 @@ export default class Results extends React.Component {
     }
   }
 
-  render() {
-    var socketClass = "float-right text-danger glyphicon glyphicon-remove-sign";
-    if (this.state && this.state.socketOpen) {
-      socketClass = "float-right text-success glyphicon glyphicon-flash";
+  resultsHandler() {
+    if (this.state) {
+      if (this.state.socketOpen || this.state.data) {
+        if (this.state.data) {
+          return this.resultsFormatter();
+        } else {
+          return "Waiting for results..."
+        }
+      } else {
+        if (this.state.error == null) {
+          return "Waiting for socket...";
+        } else {
+          return "Socket error ";
+        }
+      }
+    } else {
+      return "Loading..."
     }
+  }
+
+  resultsFormatter() {
+    if (this.state.data) {
+      // return `Summary`;
+
+      const data = this.state.data;
+      var regions = ["us-east-1", "us-west-2", "eu-west-1", "ap-northeast-1"].map(name => {
+        if (data.Regions[name]) {
+          return this.formatRegionData(name, data.Regions[name]);
+        }
+      })
+
+      return regions.join("\n").trim();
+    } else {
+      return "No results";
+    }
+  }
+
+  // Region: us-east-1
+  //   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte
+  //      1000   18323910    0.18s      54.83      0.18s
+
+  formatRegionData(region, data) {
+    return `Region: ${region}
+
+        Total Reqs               ${data["total-reqs"]}
+        Total Bytes              ${data["tot-bytes-read"]}
+        Average Time             ${data["ave-time-for-req"]}
+        Average Req/s            ${data["ave-req-per-sec"]}
+        Average Time To 1st Byte ${data["ave-time-to-first"]}
+    `
+  }
+
+  render() {
+    var cursor = <span />;
+    var socketClass = "float-right glyphicon glyphicon-remove-sign";
+
+    if (this.state) {
+      if (this.state.socketOpen) {
+        socketClass = "float-right text-success glyphicon glyphicon-flash";
+        cursor = <span className="blinking-cursor">▊</span>;
+      } else {
+        if (this.state.data) {
+          socketClass = "float-right text-info glyphicon glyphicon-flash";
+        } else {
+          socketClass = "float-right text-danger glyphicon glyphicon-remove-sign";
+        }
+      }
+    }
+
     var socket = <span className={socketClass} aria-hidden="true"></span>;
 
     return (
@@ -60,7 +137,7 @@ export default class Results extends React.Component {
           <h3 className="panel-title">$ goad -n 1000 -c 10 -m GET {this.props.url} {socket}</h3>
         </div>
         <div className="panel-body">
-          <pre>Waiting for results...<span className="blinking-cursor">▊</span></pre>
+          <pre>{this.resultsHandler()}{cursor}</pre>
         </div>
       </div>
     );
