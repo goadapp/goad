@@ -79,6 +79,9 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 			addResult(&regionData, result)
 			data.Regions[result.Region] = regionData
 			results <- data
+			if uint(regionData.TotalReqs) == totalExpectedRequests {
+				break
+			}
 			timeoutStart = time.Now()
 		} else {
 			waited := time.Since(timeoutStart)
