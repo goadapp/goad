@@ -18,11 +18,11 @@ window.ReactDOM = ReactDOM;
 ReactDOM.render(<App />, document.getElementById("demo-app"));
 
 const binaries = [
-  { os: "OS X", architecture: 64, url: "https://github.com/gophergala2016/goad/releases#mac" },
-  { os: "Linux", architecture: 32, url: "https://github.com/gophergala2016/goad/releases#linux32" },
-  { os: "Linux", architecture: 64, url: "https://github.com/gophergala2016/goad/releases#linux64" },
-  { os: "Windows", architecture: 32, url: "https://github.com/gophergala2016/goad/releases#windows32" },
-  { os: "Windows", architecture: 64, url: "https://github.com/gophergala2016/goad/releases#windows64" },
+  { os: "OS X", architecture: 64, url: "https://github.com/gophergala2016/goad/releases/download/gopher-gala/goad-gopher-gala-osx-x86-64.zip" },
+  { os: "Linux", architecture: 32, url: "https://github.com/gophergala2016/goad/releases/download/gopher-gala/goad-gopher-gala-linux-x86.zip" },
+  { os: "Linux", architecture: 64, url: "https://github.com/gophergala2016/goad/releases/download/gopher-gala/goad-gopher-gala-linux-x86-64.zip" },
+  { os: "Windows", architecture: 32, url: "https://github.com/gophergala2016/goad/releases/download/gopher-gala/goad-gopher-gala-windows-x86.zip" },
+  { os: "Windows", architecture: 64, url: "https://github.com/gophergala2016/goad/releases/download/gopher-gala/goad-gopher-gala-windows-x86-64.zip" },
 ];
 
 ReactDOM.render(<Downloads binaries={binaries} />, document.getElementById("downloads"));
