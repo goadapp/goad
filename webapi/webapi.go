@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gophergala2016/goad"
@@ -50,26 +49,28 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	concurrencyStr := r.URL.Query().Get("c")
-	concurrency, cerr := strconv.Atoi(concurrencyStr)
-	if cerr != nil {
-		http.Error(w, "Invalid concurrency", 400)
-		return
-	}
-
-	totStr := r.URL.Query().Get("tot")
-	tot, toterr := strconv.Atoi(totStr)
-	if toterr != nil {
-		http.Error(w, "Invalid total", 400)
-		return
-	}
-
-	timeoutStr := r.URL.Query().Get("timeout")
-	timeout, timeouterr := strconv.Atoi(timeoutStr)
-	if timeouterr != nil {
-		http.Error(w, "Invalid timeout", 400)
-		return
-	}
+	// Commented out param handling, we have hard coded limits for the website testing
+	//
+	// concurrencyStr := r.URL.Query().Get("c")
+	// concurrency, cerr := strconv.Atoi(concurrencyStr)
+	// if cerr != nil {
+	// 	http.Error(w, "Invalid concurrency", 400)
+	// 	return
+	// }
+	//
+	// totStr := r.URL.Query().Get("tot")
+	// tot, toterr := strconv.Atoi(totStr)
+	// if toterr != nil {
+	// 	http.Error(w, "Invalid total", 400)
+	// 	return
+	// }
+	//
+	// timeoutStr := r.URL.Query().Get("timeout")
+	// timeout, timeouterr := strconv.Atoi(timeoutStr)
+	// if timeouterr != nil {
+	// 	http.Error(w, "Invalid timeout", 400)
+	// 	return
+	// }
 
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -80,9 +81,9 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 
 	config := goad.TestConfig{
 		url,
-		uint(concurrency),
-		uint(tot),
-		time.Duration(timeout),
+		5,
+		1000,
+		time.Duration(7),
 		"eu-west-1",
 	}
 
