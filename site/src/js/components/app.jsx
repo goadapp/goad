@@ -11,15 +11,11 @@ export default class App extends React.Component {
     };
   }
 
-  handleUpdate(err, res, data) {
+  handleUpdate(data) {
     this.setState({
       submitted: true,
       url: data.url
     });
-
-    // TODO: sign-up for updates via websockets
-
-    console.log("handleUpdate", err, res, data);
   }
 
   render() {

@@ -1,16 +1,27 @@
 import React from 'react';
+var URI = require("urijs");
 
 export default class Results extends React.Component {
   requestResults() {
-    var socket = new WebSocket('ws://echo.websocket.org');
+    // curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+    // -H "Host: api.goad.io" -H "Origin: https://api.goad.io" \
+    //-H "Sec-Websocket-Version: 13" -H "Sec-Websocket-Key: 1" \
+    // "https://api.goad.io/goad?url=http://dll.nu&c=5&tot=1000&timeout=5"
+
+    var wsURI = URI("wss://api.goad.io/goad").query({
+      url: this.props.url,
+      c: 5,
+      tot: 1000,
+      timeout: 5
+    });
+
+    var socket = new WebSocket(wsURI.toString());
 
     socket.onopen = event => {
       this.setState({
         socketOpen: true
       });
       this.socket = socket;
-
-      this.sendToSocket(this.props);
     };
 
     socket.onclose = event => {
@@ -28,20 +39,6 @@ export default class Results extends React.Component {
 
   componentWillMount() {
     this.requestResults();
-  }
-
-  results() {
-    return `1000 / 1000 ∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎∎ 100.00 %
-
-Summary:
-  Total:        21.1307 secs.
-  Slowest:      2.9959 secs.
-  Fastest:      0.9868 secs.
-  Average:      2.0827 secs.
-  Requests/sec: 47.3246
-
-Status code distribution:
-  [200] 1000 responses`;
   }
 
   sendToSocket(data) {
@@ -63,7 +60,7 @@ Status code distribution:
           <h3 className="panel-title">$ goad -n 1000 -c 10 -m GET {this.props.url} {socket}</h3>
         </div>
         <div className="panel-body">
-          <pre>{this.results()}<span className="blinking-cursor">▊</span></pre>
+          <pre>Waiting for results...<span className="blinking-cursor">▊</span></pre>
         </div>
       </div>
     );
