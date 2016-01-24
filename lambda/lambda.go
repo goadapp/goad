@@ -56,6 +56,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
+	loadTestStartTime := time.Now()
 	var requestsSoFar int
 	for i := 0; i < totalRequests; i++ {
 		jobs <- Job{}
@@ -63,7 +64,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	close(jobs)
 	for i := 0; i < concurrencycount; i++ {
 		wg.Add(1)
-		go fetch(client, url, totalRequests, jobs, ch, &wg, awsregion)
+		go fetch(loadTestStartTime, client, url, totalRequests, jobs, ch, &wg, awsregion)
 	}
 	fmt.Println("Waiting for results…")
 
@@ -119,13 +120,11 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			}
 			requestTimeTotal += r.Elapsed
 		}
-		durationSeconds := lastRequestTime - firstRequestTime
 		if i == 0 {
 			continue
 		}
-		if durationSeconds == 0 { // well…
-			durationSeconds = 1
-		}
+		durationNanoSeconds := lastRequestTime - firstRequestTime
+		durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
 		aggData := sqsadaptor.AggData{
 			i,
 			totalTimedOut,
@@ -133,7 +132,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			totBytesRead,
 			statuses,
 			requestTimeTotal / int64(i),
-			i / int(durationSeconds),
+			float32(i) / durationSeconds,
 			slowest,
 			fastest,
 			awsregion,
@@ -146,7 +145,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 
 }
 
-func fetch(client *http.Client, address string, requestcount int, jobs <-chan Job, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
+func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan Job, ch chan RequestResult, wg *sync.WaitGroup, awsregion string) {
 	defer wg.Done()
 	fmt.Printf("Fetching %s\n", address)
 	for _ = range jobs {
@@ -197,7 +196,7 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 			elapsed = time.Since(start)
 		}
 		result := RequestResult{
-			start.Unix(),
+			start.Sub(loadTestStartTime).Nanoseconds(),
 			req.URL.Host,
 			req.Method,
 			statusCode,

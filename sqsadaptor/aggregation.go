@@ -10,7 +10,7 @@ type AggData struct {
 	TotBytesRead   int            `json:"tot-bytes-read"`
 	Statuses       map[string]int `json:"statuses"`
 	AveTimeForReq  int64          `json:"ave-time-for-req"`
-	AveReqPerSec   int            `json:"ave-req-per-sec"`
+	AveReqPerSec   float32        `json:"ave-req-per-sec"`
 	Slowest        int64          `json:"slowest"`
 	Fastest        int64          `json:"fastest"`
 	Region         string         `json:"region"`
@@ -35,7 +35,7 @@ func addResult(data *AggData, result *AggData) {
 		data.Statuses[key] += value
 	}
 	data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
-	data.AveReqPerSec = (data.AveReqPerSec*initialDataTot + result.AveReqPerSec*result.TotalReqs) / data.TotalReqs
+	data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
 	if result.Slowest > data.Slowest {
 		data.Slowest = result.Slowest
 	}
