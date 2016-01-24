@@ -81,6 +81,8 @@ Usage of goad:
 $ goad -n 1000 -c 5 -u https://example.com
 ```
 
+Note that sites such as https://google.com that employ redirects cannot be tested correctly at this time.
+
 ## How it works
 
 Goad takes full advantage of the power of Amazon Lambdas and Go's concurrency for distributed load testing. You can use Goad to launch HTTP loads from up to four AWS regions at once. Each lambda can handle hundreds of concurrent connections, we estimate that Goad should be able to achieve peak loads of up to **100,000 concurrent requests**.
