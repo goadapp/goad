@@ -59,8 +59,8 @@ module.exports = {
        { from: __dirname + "/src/img/favicon-32.png", to: "assets" },
        { from: __dirname + "/src/img/cli.gif", to: "assets" },
        { from: __dirname + "/src/img/go-plus-load.png", to: "assets" },
-       { from: __dirname + "/src/img/diagram.svg)", to: "assets" },
-       { from: __dirname + "/src/img/diagram.png)", to: "assets" },
+       { from: __dirname + "/src/img/diagram.svg", to: "assets" },
+       { from: __dirname + "/src/img/diagram.png", to: "assets" },
     ])
   ],
   postcss: function() {
