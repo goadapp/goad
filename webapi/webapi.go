@@ -83,7 +83,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		URL:            url,
 		Concurrency:    5,
 		TotalRequests:  1000,
-		RequestTimeout: time.Duration(7),
+		RequestTimeout: time.Duration(5 * time.Second),
 		Regions:        []string{"us-east-1"},
 	}
 
