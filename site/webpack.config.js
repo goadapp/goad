@@ -4,6 +4,7 @@ var HtmlWebpackPlugin = require("html-webpack-plugin");
 var autoprefixer = require("autoprefixer");
 var precss = require("precss");
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
+var CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   entry: [
@@ -52,7 +53,12 @@ module.exports = {
       hash: true,
       filename: "index.html",
       inject: "body"
-    })
+    }),
+    new CopyWebpackPlugin([
+       { from: __dirname + "/src/img/favicon-16.png", to: "assets" },
+       { from: __dirname + "/src/img/favicon-32.png", to: "assets" },
+       { from: __dirname + "/src/img/apple-touch-icon.png", to: "assets" },
+    ])
   ],
   postcss: function() {
     return [autoprefixer, precss];
