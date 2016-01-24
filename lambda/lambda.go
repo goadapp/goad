@@ -159,6 +159,7 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 		var elapsedLastByte time.Duration
 		var elapsed time.Duration
 		var statusCode int
+		var bytesRead int
 		buf := []byte(" ")
 		timedOut := false
 		if err != nil {
@@ -185,7 +186,8 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 				status = fmt.Sprintf("reading first byte failed: %s\n", err)
 			}
 			elapsedFirstByte = time.Since(start)
-			_, err = ioutil.ReadAll(response.Body)
+			body, err := ioutil.ReadAll(response.Body)
+			bytesRead = len(body) + 1
 			elapsedLastByte = time.Since(start)
 			if err != nil {
 				status = fmt.Sprintf("reading response body failed: %s\n", err)
@@ -202,7 +204,7 @@ func fetch(client *http.Client, address string, requestcount int, jobs <-chan Jo
 			elapsed.Nanoseconds(),
 			elapsedFirstByte.Nanoseconds(),
 			elapsedLastByte.Nanoseconds(),
-			len(buf),
+			bytesRead,
 			timedOut,
 			status,
 		}
