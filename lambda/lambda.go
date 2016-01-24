@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
+	"github.com/gophergala2016/goad/queue"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -12,9 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
-	"github.com/gophergala2016/goad/queue"
 )
 
 func main() {
@@ -68,9 +67,9 @@ type RequestResult struct {
 }
 
 func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string) {
-	awsConfig := aws.NewConfig().WithRegion(awsregion)
-	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
-	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
+	//awsConfig := aws.NewConfig().WithRegion(awsregion)
+	//sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
+	sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
