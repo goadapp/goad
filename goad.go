@@ -1,11 +1,13 @@
 package goad
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
@@ -22,6 +24,12 @@ type TestConfig struct {
 	TotalRequests  uint
 	RequestTimeout time.Duration
 	Regions        []string
+	Method         string
+}
+
+type invokeArgs struct {
+	File string   `json:"file"`
+	Args []string `json:"args"`
 }
 
 const nano = 1000000000
@@ -76,26 +84,35 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 
 		c := t.config
-		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s %s",
-			c.URL, concurrency, requests, sqsURL, region, c.RequestTimeout,
-			reportingFrequency(lambdas), c.Regions[0])
+		args := invokeArgs{
+			File: "./goad-lambda",
+			Args: []string{
+				c.URL,
+				strconv.Itoa(int(concurrency)),
+				strconv.Itoa(int(requests)),
+				sqsURL,
+				region,
+				c.RequestTimeout.String(),
+				reportingFrequency(lambdas).String(),
+				c.Regions[0],
+				c.Method,
+			},
+		}
 
 		config := aws.NewConfig().WithRegion(region)
-		go t.invokeLambda(config, cmd)
+		go t.invokeLambda(config, args)
 	}
 }
 
-func (t *Test) invokeLambda(awsConfig *aws.Config, cmd string) {
+func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
 	svc := lambda.New(session.New(), awsConfig)
 
-	_, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad"),
-		InvokeArgs:   strings.NewReader(`{"cmd":"` + cmd + `"}`),
-	})
+	j, _ := json.Marshal(args)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	svc.InvokeAsync(&lambda.InvokeAsyncInput{
+		FunctionName: aws.String("goad"),
+		InvokeArgs:   bytes.NewReader(j),
+	})
 }
 
 func numberOfLambdas(concurrency uint) int {
@@ -114,8 +131,9 @@ func reportingFrequency(numberOfLambdas int) time.Duration {
 }
 
 func (c TestConfig) check() error {
-	if c.Concurrency < 1 || c.Concurrency > 100000 {
-		return errors.New("Invalid concurrency (use 1 - 100000)")
+	concurrencyLimit := 25000 * uint(len(c.Regions))
+	if c.Concurrency < 1 || c.Concurrency > concurrencyLimit {
+		return fmt.Errorf("Invalid concurrency (use 1 - %d)", concurrencyLimit)
 	}
 	if c.TotalRequests < 1 || c.TotalRequests > 1000000 {
 		return errors.New("Invalid total requests (use 1 - 1000000)")

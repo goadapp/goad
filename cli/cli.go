@@ -23,6 +23,7 @@ var (
 	requests    uint
 	timeout     uint
 	regions     string
+	method      string
 )
 
 const coldef = termbox.ColorDefault
@@ -30,6 +31,7 @@ const nano = 1000000000
 
 func main() {
 	flag.StringVar(&url, "u", "", "URL to load test (required)")
+	flag.StringVar(&method, "m", "GET", "HTTP method")
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
