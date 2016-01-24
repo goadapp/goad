@@ -7,6 +7,10 @@ load testing tool built in Go for the 2016 [Gopher Gala][].
 
 Goad allows you to load test your websites from all over the world whilst costing you the tiniest fractions of a penny by using AWS Lambda in multiple regions simultaneously.
 
+You can run Goad from your machine using your own AWS credentials, and it will automatically create the AWS resources you need and execute your test, and display the results broken down by region. This way you can see how fast your website is from all the major regions of the world.
+
+If you just want to try Goad out, visit the [Goad.io website](https://goad.io) and enter the address of the site you want to test.
+
 ## Installation
 
 ### Binary
