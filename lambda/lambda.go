@@ -214,7 +214,8 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		buf := []byte(" ")
 		timedOut := false
 		connectionError := false
-		if err != nil && !strings.Contains(err.Error(), "redirect") {
+		isRedirect := err != nil && strings.Contains(err.Error(), "redirect")
+		if err != nil && !isRedirect {
 			status = fmt.Sprintf("ERROR: %s\n", err)
 			switch err := err.(type) {
 			case *url.Error:
@@ -233,24 +234,28 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		} else {
 			statusCode = response.StatusCode
 			elapsedFirstByte = time.Since(start)
-			_, err = response.Body.Read(buf)
-			firstByteRead := true
-			if err != nil {
-				status = fmt.Sprintf("reading first byte failed: %s\n", err)
-				firstByteRead = false
-			}
-			body, err := ioutil.ReadAll(response.Body)
-			response.Body.Close()
-			if firstByteRead {
-				bytesRead = len(body) + 1
-			}
-			elapsedLastByte = time.Since(start)
-			if err != nil {
-				// todo: detect timeout here as well
-				status = fmt.Sprintf("reading response body failed: %s\n", err)
-				connectionError = true
+			if !isRedirect {
+				_, err = response.Body.Read(buf)
+				firstByteRead := true
+				if err != nil {
+					status = fmt.Sprintf("reading first byte failed: %s\n", err)
+					firstByteRead = false
+				}
+				body, err := ioutil.ReadAll(response.Body)
+				response.Body.Close()
+				if firstByteRead {
+					bytesRead = len(body) + 1
+				}
+				elapsedLastByte = time.Since(start)
+				if err != nil {
+					// todo: detect timeout here as well
+					status = fmt.Sprintf("reading response body failed: %s\n", err)
+					connectionError = true
+				} else {
+					status = "Success"
+				}
 			} else {
-				status = "Success"
+				status = "Redirect"
 			}
 			elapsed = time.Since(start)
 		}
