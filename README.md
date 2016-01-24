@@ -3,7 +3,7 @@
 Goad is an AWS Lambda powered, highly distributed,
 load testing tool built in Go for the 2016 [Gopher Gala][].
 
-![Go + Load ⇒ Goad](./site/src/img/go-plus-load.png)
+![Go + Load ⇒ Goad](https://goad.io/assets/go-plus-load.png)
 
 Goad allows you to load test your websites from all over the world whilst costing you the tiniest fractions of a penny by using AWS Lambda in multiple regions simultaneously.
 
@@ -11,7 +11,7 @@ You can run Goad from your machine using your own AWS credentials, and it will a
 
 If you just want to try Goad out, visit the [Goad.io website](https://goad.io) and enter the address of the site you want to test.
 
-![goad CLI interface](./site/src/img/cli.gif)
+![goad CLI interface](https://goad.io/assets/cli.gif)
 
 ## Installation
 
@@ -83,7 +83,7 @@ $ goad -n 1000 -c 5 -u https://example.com
 
 Goad takes full advantage of the power of Amazon Lambdas and Go's concurrency for distributed load testing. You can use Goad to launch HTTP loads from up to four AWS regions at once. Each lambda can handle hundreds of concurrent connections, we estimate that Goad should be able to achieve peak loads of up to **100,000 concurrent requests**.
 
-![Goad diagram](./site/src/img/diagram.png)
+![Goad diagram](https://goad.io/assets/diagram.png)
 
 ## How it was built
 
