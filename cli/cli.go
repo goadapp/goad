@@ -104,12 +104,16 @@ func renderString(x int, y int, str string, f termbox.Attribute, b termbox.Attri
 	}
 }
 
+func boldPrintln(msg string) {
+	fmt.Printf("\033[1m%s\033[0m\n", msg)
+}
+
 func printSummary(result *queue.RegionsAggData) {
-	fmt.Println("Summary")
+	boldPrintln("Summary")
 	fmt.Println("")
 	for region, data := range result.Regions {
 		fmt.Println("Region: " + region)
-		fmt.Println("   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte")
+		boldPrintln("   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte")
 		fmt.Printf("%10d %10d %7.2fs %10.2f   %7.2fs\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
 		fmt.Println("")
 	}
