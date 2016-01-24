@@ -70,6 +70,7 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 	defer termbox.Close()
 	termbox.Sync()
 	renderString(0, 0, "Launching on AWS...", coldef, coldef)
+	renderLogo()
 	termbox.Flush()
 
 	resultChan := test.Start()
@@ -87,6 +88,7 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 		}
 	}()
 
+	firstTime := true
 outer:
 	for {
 		select {
@@ -94,7 +96,12 @@ outer:
 			if !ok {
 				break outer
 			}
-			//		result.Regions["eu-west-1"] = result.Regions["us-east-1"]
+
+			if firstTime {
+				clearLogo()
+				firstTime = false
+			}
+
 			// sort so that regions always appear in the same order
 			var regions []string
 			for key := range result.Regions {
@@ -120,6 +127,27 @@ outer:
 		case <-sigChan:
 			break outer
 		}
+	}
+}
+
+func renderLogo() {
+	s1 := `	  _____                 _`
+	s2 := `  / ____|               | |`
+	s3 := `	| |  __  ___   ____  __| |`
+	s4 := `	| | |_ |/ _ \ / _  |/ _  |`
+	s5 := `	| |__| | (_) | (_| | (_| |`
+	s6 := `	 \_____|\___/ \__,_|\__,_|`
+	s7 := " Global load testing with Go"
+	arr := [...]string{s1, s2, s3, s4, s5, s6, s7}
+	for i, str := range arr {
+		renderString(0, i+1, str, coldef, coldef)
+	}
+}
+
+// Also clears loading message
+func clearLogo() {
+	for i := 0; i < 8; i++ {
+		renderString(0, i, "                            ", coldef, coldef)
 	}
 }
 
