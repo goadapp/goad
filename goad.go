@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -16,19 +17,14 @@ import (
 
 // TestConfig type
 type TestConfig struct {
-	URL                string
-	Concurrency        uint
-	TotalRequests      uint
-	RequestTimeout     time.Duration
-	Region             string
-	ReportingFrequency time.Duration
+	URL            string
+	Concurrency    uint
+	TotalRequests  uint
+	RequestTimeout time.Duration
+	Region         string
 }
 
 const nano = 1000000000
-
-func (c *TestConfig) cmd(sqsURL string) string {
-	return fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s", c.URL, c.Concurrency, c.TotalRequests, sqsURL, c.Region, c.RequestTimeout, c.ReportingFrequency)
-}
 
 // Test type
 type Test struct {
@@ -79,7 +75,8 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 
 		c := t.config
-		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s", c.URL, concurrency, requests, sqsURL, c.Region, c.RequestTimeout, c.ReportingFrequency)
+		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s",
+			c.URL, concurrency, requests, sqsURL, c.Region, c.RequestTimeout, reportingFrequency(lambdas))
 
 		go t.invokeLambda(awsConfig, cmd)
 	}
@@ -103,6 +100,10 @@ func numberOfLambdas(concurrency uint) int {
 
 func divide(dividend uint, divisor int) (quotient, remainder uint) {
 	return dividend / uint(divisor), dividend % uint(divisor)
+}
+
+func reportingFrequency(numberOfLambdas int) time.Duration {
+	return time.Duration((math.Log2(float64(numberOfLambdas)) + 1)) * time.Second
 }
 
 func (c TestConfig) check() error {

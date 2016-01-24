@@ -41,12 +41,11 @@ func main() {
 	url = flag.Args()[0]
 
 	test, testerr := goad.NewTest(&goad.TestConfig{
-		URL:                url,
-		Concurrency:        concurrency,
-		TotalRequests:      requests,
-		RequestTimeout:     time.Duration(timeout) * time.Second,
-		Region:             region,
-		ReportingFrequency: 1,
+		URL:            url,
+		Concurrency:    concurrency,
+		TotalRequests:  requests,
+		RequestTimeout: time.Duration(timeout) * time.Second,
+		Region:         region,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
