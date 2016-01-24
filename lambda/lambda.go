@@ -36,7 +36,18 @@ func main() {
 			return
 		}
 	}
-	fmt.Printf("Using a timeout of %.2f seconds\n", float32(clientTimeout.Nanoseconds())/float32(1000000000))
+	fmt.Printf("Using a timeout of %s\n", clientTimeout)
+	reportingFrequency, _ := time.ParseDuration("1s")
+	if len(os.Args) > 7 {
+		newReportingFrequency, err := time.ParseDuration(os.Args[7])
+		if err == nil {
+			reportingFrequency = newReportingFrequency
+		} else {
+			fmt.Printf("Error parsing reporting frequency: %s\n", err)
+			return
+		}
+	}
+	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
 	client := &http.Client{}
 	client.Timeout = clientTimeout
@@ -44,7 +55,7 @@ func main() {
 		return errors.New("redirect")
 	}
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
-	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion)
+	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency)
 }
 
 type RequestResult struct {
@@ -82,7 +93,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 	}
 	fmt.Println(" done.\nWaiting for results…")
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(reportingFrequency)
 	quit := make(chan struct{})
 	quitting := false
 
