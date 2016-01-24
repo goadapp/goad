@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/gophergala2016/goad"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/dustin/go-humanize"
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
 	"github.com/gophergala2016/goad/queue"
 )
