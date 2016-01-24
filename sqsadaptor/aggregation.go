@@ -43,7 +43,7 @@ func addResult(data *AggData, result *AggData) {
 	if result.Slowest > data.Slowest {
 		data.Slowest = result.Slowest
 	}
-	if result.Fastest < data.Fastest {
+	if data.Fastest == 0 || result.Fastest < data.Fastest {
 		data.Fastest = result.Fastest
 	}
 }
