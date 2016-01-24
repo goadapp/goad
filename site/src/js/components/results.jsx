@@ -67,11 +67,11 @@ export default class Results extends React.Component {
         if (this.state.data) {
           return this.resultsFormatter();
         } else {
-          return "Waiting for results..."
+          return "..."
         }
       } else {
         if (this.state.error == null) {
-          return "Waiting for socket...";
+          return "...";
         } else {
           return "Socket error ";
         }
