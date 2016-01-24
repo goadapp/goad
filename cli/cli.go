@@ -40,6 +40,7 @@ func main() {
 
 	if url == "" {
 		flag.Usage()
+		os.Exit(0)
 	}
 
 	test, testerr := goad.NewTest(&goad.TestConfig{
