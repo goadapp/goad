@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -129,14 +130,31 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
 	x = 0
 	y++
-	headingStr := "   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte"
+	headingStr := "   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr := fmt.Sprintf("%10d %10d %7.2fs %10.2f   %7.2fs", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
-	x = 0
+	resultStr := fmt.Sprintf("%10d %10d   %7.2fs %10.2f   %7.2fs", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
+	headingStr = "   Slowest    Fastest     Errors"
+	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
+	y++
+	resultStr = fmt.Sprintf("   %7.2f    %7.2f %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, totErrors(&data))
+	renderString(x, y, resultStr, coldef, coldef)
+	y++
+
 	return y
+}
+
+func totErrors(data *queue.AggData) int {
+	var okReqs int
+	for statusStr, value := range data.Statuses {
+		status, _ := strconv.Atoi(statusStr)
+		if status >= 200 && status <= 299 {
+			okReqs += value
+		}
+	}
+	return data.TotalReqs - okReqs
 }
 
 func drawProgressBar(percent float64, y int) {
@@ -172,12 +190,32 @@ func printSummary(result *queue.RegionsAggData) {
 		boldPrintln("No results received")
 		return
 	}
-	boldPrintln("Summary")
+	boldPrintln("Regional results")
 	fmt.Println("")
+
 	for region, data := range result.Regions {
 		fmt.Println("Region: " + region)
-		boldPrintln("   TotReqs   TotBytes  AveTime   AveReq/s Ave1stByte")
-		fmt.Printf("%10d %10d %7.2fs %10.2f   %7.2fs\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
+		boldPrintln("   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte")
+		fmt.Printf("%10d %10d   %7.2fs %10.2f   %7.2fs\n", data.TotalReqs, data.TotBytesRead, float64(data.AveTimeForReq)/nano, data.AveReqPerSec, float64(data.AveTimeToFirst)/nano)
+		boldPrintln("   Slowest    Fastest     Errors")
+		fmt.Printf("   %7.2f    %7.2f %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, totErrors(&data))
 		fmt.Println("")
 	}
+
+	overall := queue.SumRegionResults(result)
+
+	fmt.Println("")
+	boldPrintln("Overall")
+	fmt.Println("")
+	boldPrintln("   TotReqs   TotBytes    AveTime   AveReq/s Ave1stByte")
+	fmt.Printf("%10d %10d   %7.2fs %10.2f   %7.2fs\n", overall.TotalReqs, overall.TotBytesRead, float64(overall.AveTimeForReq)/nano, overall.AveReqPerSec, float64(overall.AveTimeToFirst)/nano)
+	boldPrintln("   Slowest    Fastest     Errors")
+	fmt.Printf("   %7.2f    %7.2f %10d", float64(overall.Slowest)/nano, float64(overall.Fastest)/nano, totErrors(overall))
+	fmt.Println("")
+
+	boldPrintln("HTTPStatus   Requests")
+	for statusStr, value := range overall.Statuses {
+		fmt.Printf("%10s %10d\n", statusStr, value)
+	}
+	fmt.Println("")
 }
