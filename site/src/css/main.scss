@@ -1,7 +1,9 @@
 @import './_bootswatch.scss';
 
-img.goad {
-  max-width: 100%;
+img {
+  &.goad, &.diagram {
+    max-width: 100%;
+  }
 }
 
 body {

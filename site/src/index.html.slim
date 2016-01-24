@@ -32,14 +32,14 @@ html
 
       #demo.row
         .col-md-8.col-md-offset-2
-          h2 Demo
+          markdown:
+            ## Domo
 
-          p Use this online demo to give Goad a try without having to install anything.
+            Use this online demo to give Goad a try without having to install anything.
 
-          p
-            | As we don't want this to turn into a DDoS-on-demand tool, this
-            | online version of Goad is intentionally limited to just 10 requests
-            | &#32;per second. The CLI version of Goad doesn't have this limitation.
+            As we don't want this to turn into a DDoS-on-demand tool, this
+            online version of Goad is intentionally limited to just 10 requests
+            per second. The CLI version of Goad doesn't have this limitation.
 
           #demo-app
       hr
@@ -59,6 +59,22 @@ html
               h4 Build from source
 
               p See the instructions in the <a href="https://github.com/gophergala2016/goad#readme">README</a>.
+
+      #about
+        .row
+          .col-md-8.col-md-offset-2
+            h2 How Goad works
+
+            markdown:
+              Goad takes full advantage of the power of Amazon Lambdas for
+              distributed load testing. You can use goad to launch HTTP loads from
+              up to four AWS regions at once. Each lambda can handle hundreds of
+              concurrent connections, we estimate that Goad should bew able to
+              achieve peak loads of upto **10,000 requests/second**.
+
+        .row
+          .col-md-12
+            img.diagram src="img/diagram.svg" alt="Goad diagram"
 
     footer.footer
       .container
