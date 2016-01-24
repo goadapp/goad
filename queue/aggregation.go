@@ -65,6 +65,16 @@ func addResult(data *AggData, result *AggData) {
 	}
 }
 
+// SumRegionResults adds all the results together
+func SumRegionResults(regionData *RegionsAggData) *AggData {
+	var totals AggData
+	totals.Statuses = make(map[string]int)
+	for _, data := range regionData.Regions {
+		addResult(&totals, &data)
+	}
+	return &totals
+}
+
 // Aggregate listens for results and sends totals, closing the channel when done
 func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) chan RegionsAggData {
 	results := make(chan RegionsAggData)
