@@ -1,4 +1,4 @@
-package sqsadaptor
+package queue
 
 import (
 	"encoding/json"

@@ -20,7 +20,7 @@ func main() {
 	Serve()
 }
 
-func jsonFromRegionsAggData(result sqsadaptor.RegionsAggData) (string, error) {
+func jsonFromRegionsAggData(result queue.RegionsAggData) (string, error) {
 	data, jsonerr := json.Marshal(result)
 	if jsonerr != nil {
 		return "", jsonerr

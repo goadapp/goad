@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gophergala2016/goad/infrastructure"
-	"github.com/gophergala2016/goad/sqsadaptor"
+	"github.com/gophergala2016/goad/queue"
 )
 
 //type Result struct{}
@@ -35,7 +35,7 @@ func NewTest(config *TestConfig) *Test {
 	return &Test{config}
 }
 
-func (t *Test) Start() <-chan sqsadaptor.RegionsAggData {
+func (t *Test) Start() <-chan queue.RegionsAggData {
 	awsConfig := aws.NewConfig().WithRegion(t.config.Region)
 	infra, err := infrastructure.New(awsConfig)
 	if err != nil {
@@ -45,9 +45,9 @@ func (t *Test) Start() <-chan sqsadaptor.RegionsAggData {
 
 	t.invokeLambda(awsConfig, infra.QueueURL())
 
-	results := make(chan sqsadaptor.RegionsAggData)
+	results := make(chan queue.RegionsAggData)
 
-	go sqsadaptor.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
+	go queue.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
 
 	return results
 }

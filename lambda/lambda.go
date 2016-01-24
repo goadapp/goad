@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/gophergala2016/goad/sqsadaptor"
+	"github.com/gophergala2016/goad/queue"
 )
 
 func main() {
@@ -64,8 +64,8 @@ type RequestResult struct {
 
 func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string) {
 	awsConfig := aws.NewConfig().WithRegion(awsregion)
-	sqsAdaptor := sqsadaptor.NewSQSAdaptor(awsConfig, sqsurl)
-	//sqsAdaptor := sqsadaptor.NewDummyAdaptor(sqsurl)
+	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
+	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
 	jobs := make(chan Job, totalRequests)
 	ch := make(chan RequestResult, totalRequests)
 	var wg sync.WaitGroup
@@ -145,7 +145,7 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		}
 		durationNanoSeconds := lastRequestTime - firstRequestTime
 		durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
-		aggData := sqsadaptor.AggData{
+		aggData := queue.AggData{
 			i,
 			totalTimedOut,
 			totalConnectionError,
