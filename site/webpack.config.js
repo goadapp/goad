@@ -41,10 +41,6 @@ module.exports = {
       {
         test: /\.html\.(slm|slim)$/,
         loader: 'html!slm'
-      },
-      {
-        test: require.resolve("jquery"),
-        loader: "imports?this=>window"
       }
     ]
   },
