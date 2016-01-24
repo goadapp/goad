@@ -3,11 +3,12 @@ var path = require("path");
 var HtmlWebpackPlugin = require("html-webpack-plugin");
 var autoprefixer = require("autoprefixer");
 var precss = require("precss");
+var ExtractTextPlugin = require('extract-text-webpack-plugin');
 
 module.exports = {
   entry: [
-    "bootstrap-loader",
-    "./src/js/main.js"
+    "bootstrap-loader/extractStyles",
+    "./src/js/main.js",
   ],
   output: {
     path: path.join(__dirname, "dist"),
@@ -41,14 +42,11 @@ module.exports = {
       {
         test: /\.html\.(slm|slim)$/,
         loader: 'html!slm'
-      },
-      {
-        test: require.resolve("jquery"),
-        loader: "imports?this=>window"
       }
     ]
   },
   plugins: [
+    new ExtractTextPlugin('styles.css', { allChunks: true }),
     new HtmlWebpackPlugin({
       template: __dirname + "/src/index.html.slim",
       hash: true,

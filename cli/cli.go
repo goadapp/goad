@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gophergala2016/goad"
-	"github.com/nsf/termbox-go"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
 )
 
 var (

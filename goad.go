@@ -6,14 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws/session"
+	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gophergala2016/goad/infrastructure"
 	"github.com/gophergala2016/goad/queue"
 )
-
-//type Result struct{}
 
 type TestConfig struct {
 	URL            string
@@ -41,13 +39,18 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//	defer infra.Clean()
 
 	t.invokeLambda(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
-	go queue.Aggregate(results, awsConfig, infra.QueueURL(), t.config.TotalRequests)
+	go func() {
+		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.config.TotalRequests) {
+			results <- result
+		}
+		infra.Clean()
+		close(results)
+	}()
 
 	return results
 }
