@@ -26,9 +26,16 @@ func main() {
 	sqsurl := os.Args[4]
 	awsregion := os.Args[5]
 	clientTimeout, _ := time.ParseDuration("1s")
-	if len(os.Args) >= 7 {
-		clientTimeout, _ = time.ParseDuration(os.Args[6])
+	if len(os.Args) > 6 {
+		newClientTimeout, err := time.ParseDuration(os.Args[6])
+		if err == nil {
+			clientTimeout = newClientTimeout
+		} else {
+			fmt.Printf("Error parsing timeout: %s\n", err)
+			return
+		}
 	}
+	fmt.Printf("Using a timeout of %d nanoseconds\n", clientTimeout.Nanoseconds())
 	if err != nil {
 		fmt.Printf("ERROR %s\n", err)
 		return
