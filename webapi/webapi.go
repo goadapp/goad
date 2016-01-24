@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gophergala2016/goad"
-	"github.com/gophergala2016/goad/sqsadaptor"
+	"github.com/gophergala2016/goad/queue"
 	"github.com/gorilla/websocket"
 )
 
@@ -108,9 +108,14 @@ func readLoop(c *websocket.Conn) {
 	}
 }
 
+func health(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.OK)
+}
+
 // Serve waits for connections and serves the results
 func Serve() {
 	http.HandleFunc("/goad", serveResults)
+	http.HandleFunc("/_health", health)
 	err := http.ListenAndServe(*addr, nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
