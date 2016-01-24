@@ -237,13 +237,17 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		} else {
 			statusCode = response.StatusCode
 			_, err = response.Body.Read(buf)
+			firstByteRead := true
 			if err != nil {
 				status = fmt.Sprintf("reading first byte failed: %s\n", err)
+				firstByteRead = false
 			}
 			elapsedFirstByte = time.Since(start)
 			body, err := ioutil.ReadAll(response.Body)
 			response.Body.Close()
-			bytesRead = len(body) + 1
+			if firstByteRead {
+				bytesRead = len(body) + 1
+			}
 			elapsedLastByte = time.Since(start)
 			if err != nil {
 				status = fmt.Sprintf("reading response body failed: %s\n", err)
