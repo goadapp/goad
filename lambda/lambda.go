@@ -194,7 +194,7 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 	for _ = range jobs {
 		start := time.Now()
 		req, err := http.NewRequest("GET", address, nil)
-		req.Header.Add("User-Agent", "GOAD/0.1")
+		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		response, err := client.Do(req)
 		var status string
 		var elapsedFirstByte time.Duration
