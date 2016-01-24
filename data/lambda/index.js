@@ -1,7 +1,7 @@
-var exec = require("child_process").exec;
+var execFile = require("child_process").execFile;
 
 exports.handler = function(event, context) {
-    child = exec(event.file, event.args, function(error) {
+    child = execFile(event.file, event.args, function(error) {
         context.done(error, "Process complete!");
     });
     child.stdout.on("data", console.log);
