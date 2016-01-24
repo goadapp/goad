@@ -1,4 +1,4 @@
-package webapi
+package main
 
 import (
 	"encoding/json"
@@ -15,6 +15,10 @@ import (
 
 var addr = flag.String("addr", ":8080", "http service address")
 var upgrader = websocket.Upgrader{}
+
+func main() {
+	Serve()
+}
 
 func jsonFromRegionsAggData(result sqsadaptor.RegionsAggData) (string, error) {
 	data, jsonerr := json.Marshal(result)
