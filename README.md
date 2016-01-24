@@ -53,6 +53,10 @@ Because we we wanted to use React and ES6 to build the online demo, we opted to 
 
 We use WebSockets and React to present the results of the demo load test every few seconds as more results come in.
 
+AWS Lamba instances are bootstrapped using node.js but the actual work on the Lambda instances is performed by a Go process. The HTTP
+requests are distributed among multiple Lambda instances each running multiple concurrent goroutines, in order to achieve the desired
+concurrency level with high throughput.
+
 As we wanted to prevent the site from being used as a DDoS tool, the online demo is very limited but hopefully enough to demonstrate the usefulness of the CLI version of Goad.
 
 * [Bootstrap][] and the Darkly theme from [Bootswatch][]
