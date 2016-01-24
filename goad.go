@@ -16,17 +16,18 @@ import (
 
 // TestConfig type
 type TestConfig struct {
-	URL            string
-	Concurrency    uint
-	TotalRequests  uint
-	RequestTimeout time.Duration
-	Region         string
+	URL                string
+	Concurrency        uint
+	TotalRequests      uint
+	RequestTimeout     time.Duration
+	Region             string
+	ReportingFrequency time.Duration
 }
 
 const nano = 1000000000
 
 func (c *TestConfig) cmd(sqsURL string) string {
-	return fmt.Sprintf("./goad-lambda %s %d %d %s %s", c.URL, c.Concurrency, c.TotalRequests, sqsURL, c.Region)
+	return fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s", c.URL, c.Concurrency, c.TotalRequests, sqsURL, c.Region, c.RequestTimeout, c.ReportingFrequency)
 }
 
 // Test type
@@ -51,7 +52,7 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 		log.Fatal(err)
 	}
 
-	t.invokeLambda(awsConfig, infra.QueueURL())
+	t.invokeLambdas(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
@@ -66,14 +67,42 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 	return results
 }
 
-func (t *Test) invokeLambda(awsConfig *aws.Config, sqsURL string) {
+func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
+	lambdas := numberOfLambdas(t.config.Concurrency)
+
+	for i := 0; i < lambdas; i++ {
+		requests, requestsRemainder := divide(t.config.TotalRequests, lambdas)
+		concurrency, _ := divide(t.config.Concurrency, lambdas)
+
+		if requestsRemainder > 0 && i == lambdas-1 {
+			requests += requestsRemainder
+		}
+
+		c := t.config
+		cmd := fmt.Sprintf("./goad-lambda %s %d %d %s %s %s %s", c.URL, concurrency, requests, sqsURL, c.Region, c.RequestTimeout, c.ReportingFrequency)
+
+		go t.invokeLambda(awsConfig, cmd)
+	}
+}
+
+func (t *Test) invokeLambda(awsConfig *aws.Config, cmd string) {
 	svc := lambda.New(session.New(), awsConfig)
 
-	resp, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	svc.InvokeAsync(&lambda.InvokeAsyncInput{
 		FunctionName: aws.String("goad"),
-		InvokeArgs:   strings.NewReader(`{"cmd":"` + t.config.cmd(sqsURL) + `"}`),
+		InvokeArgs:   strings.NewReader(`{"cmd":"` + cmd + `"}`),
 	})
-	fmt.Println(resp, err)
+}
+
+func numberOfLambdas(concurrency uint) int {
+	if concurrency/10 > 100 {
+		return 100
+	}
+	return int(concurrency-1)/10 + 1
+}
+
+func divide(dividend uint, divisor int) (quotient, remainder uint) {
+	return dividend / uint(divisor), dividend % uint(divisor)
 }
 
 func (c TestConfig) check() error {
