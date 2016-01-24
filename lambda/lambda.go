@@ -242,7 +242,6 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 					firstByteRead = false
 				}
 				body, err := ioutil.ReadAll(response.Body)
-				response.Body.Close()
 				if firstByteRead {
 					bytesRead = len(body) + 1
 				}
@@ -257,6 +256,8 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			} else {
 				status = "Redirect"
 			}
+			response.Body.Close()
+
 			elapsed = time.Since(start)
 		}
 		//fmt.Printf("Request end: %d, elapsed: %d\n", time.Now().Sub(loadTestStartTime).Nanoseconds(), elapsed.Nanoseconds())
