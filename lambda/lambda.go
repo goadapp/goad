@@ -49,13 +49,15 @@ func main() {
 	}
 	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
+	queueRegion := os.Args[8]
+
 	client := &http.Client{}
 	client.Timeout = clientTimeout
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return errors.New("redirect")
 	}
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
-	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency)
+	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion)
 }
 
 type RequestResult struct {
@@ -72,8 +74,8 @@ type RequestResult struct {
 	State            string `json:"state"`
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration) {
-	awsConfig := aws.NewConfig().WithRegion(awsregion)
+func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string) {
+	awsConfig := aws.NewConfig().WithRegion(queueRegion)
 	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
 	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
 	jobs := make(chan struct{}, totalRequests)
