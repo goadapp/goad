@@ -42,11 +42,22 @@ export default class Form extends React.Component {
           <input type="url" className="form-control" id="url" placeholder="https://…" onChange={this.handleURLChange.bind(this)}/>
           {helpBlock}
         </div>
-        <div className="form-group">
-          <label>Target load</label>
-          <p className="form-control-static">10 / second (download the CLI tool to use a higher load)</p>
-        </div>
         <button type="submit" className="btn btn-danger">Start test</button>
+        <hr/>
+        <h4>Demo settings</h4>
+        <p>Download the CLI tool for full control.</p>
+        <div className="form-group">
+          <label>Maximum concurrency</label>
+          <p className="form-control-static">5</p>
+        </div>
+        <div className="form-group">
+          <label>Total number of requests</label>
+          <p className="form-control-static">1000</p>
+        </div>
+        <div className="form-group">
+          <label>Timeout after</label>
+          <p className="form-control-static">5 seconds</p>
+        </div>
       </form>
     );
   }
