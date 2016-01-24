@@ -22,4 +22,12 @@ clean:
 	rm -rf data/lambda/goad-lambda
 	rm -rf build
 
+all-zip: all
+	mkdir ./build/zip
+	zip -jr ./build/zip/goad-osx-x86-64 ./build/osx/x86-64/goad
+	zip -jr ./build/zip/goad-linux-x86-64 ./build/linux/x86-64/goad
+	zip -jr ./build/zip/goad-linux-x86 ./build/linux/x86/goad
+	zip -jr ./build/zip/goad-windows-x86-64 ./build/windows/x86-64/goad
+	zip -jr ./build/zip/goad-windows-x86 ./build/windows/x86/goad
+
 .PHONY: lambda bindata
