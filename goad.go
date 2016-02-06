@@ -26,6 +26,7 @@ type TestConfig struct {
 	RequestTimeout time.Duration
 	Regions        []string
 	Method         string
+	Body           string
 }
 
 type invokeArgs struct {
@@ -104,6 +105,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 				reportingFrequency(lambdas).String(),
 				c.Regions[0],
 				c.Method,
+				c.Body,
 			},
 		}
 
