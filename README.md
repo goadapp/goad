@@ -76,6 +76,8 @@ Usage of goad:
       request timeout in seconds (default 15)
   -u string
       URL to load test (required)
+  -H string
+      HTTP Header to add to the request. This option can be set multiple times.
 
 # For example:
 $ goad -n 1000 -c 5 -u https://example.com
