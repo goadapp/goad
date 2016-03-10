@@ -29,7 +29,7 @@ To build the Goad CLI from scratch, make sure you have a working Go 1.5 workspac
 1. Fetch the project with `go get`:
 
   ```sh
-  go get github.com/gophergala2016/goad
+  go get github.com/goadapp/goad
   ```
 
 2. Install Go [bindata][]:
