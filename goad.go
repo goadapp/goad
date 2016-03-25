@@ -27,6 +27,7 @@ type TestConfig struct {
 	Regions        []string
 	Method         string
 	Body           string
+	Headers        []string
 }
 
 type invokeArgs struct {
@@ -93,24 +94,40 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 
 		c := t.config
-		args := invokeArgs{
+		args := []string{
+			"-u",
+			fmt.Sprintf("%s", c.URL),
+			"-c",
+			fmt.Sprintf("%s", strconv.Itoa(int(concurrency))),
+			"-n",
+			fmt.Sprintf("%s", strconv.Itoa(int(requests))),
+			"-s",
+			fmt.Sprintf("%s", sqsURL),
+			"-q",
+			fmt.Sprintf("%s", c.Regions[0]),
+			"-t",
+			fmt.Sprintf("%s", c.RequestTimeout.String()),
+			"-f",
+			fmt.Sprintf("%s", reportingFrequency(lambdas).String()),
+			"-r",
+			fmt.Sprintf("%s", region),
+			"-m",
+			fmt.Sprintf("%s", c.Method),
+			"-b",
+			fmt.Sprintf("%s", c.Body),
+		}
+
+		for _, v := range t.config.Headers {
+			args = append(args, "-H", fmt.Sprintf("%s", v))
+		}
+
+		invokeargs := invokeArgs{
 			File: "./goad-lambda",
-			Args: []string{
-				c.URL,
-				strconv.Itoa(int(concurrency)),
-				strconv.Itoa(int(requests)),
-				sqsURL,
-				region,
-				c.RequestTimeout.String(),
-				reportingFrequency(lambdas).String(),
-				c.Regions[0],
-				c.Method,
-				c.Body,
-			},
+			Args: args,
 		}
 
 		config := aws.NewConfig().WithRegion(region)
-		go t.invokeLambda(config, args)
+		go t.invokeLambda(config, invokeargs)
 	}
 }
 
@@ -166,6 +183,12 @@ func (c TestConfig) check() error {
 		}
 		if !supportedRegionFound {
 			return fmt.Errorf("Unsupported region: %s. Supported regions are: %s.", region, strings.Join(supportedRegions, ", "))
+		}
+	}
+	for _, v := range c.Headers {
+		header := strings.Split(v, ":")
+		if len(header) < 2 {
+			return fmt.Errorf("Header %s not valid. Make sure your header is of the form \"Header: value\"", v)
 		}
 	}
 	return nil

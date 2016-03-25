@@ -14,6 +14,7 @@ import (
 	"github.com/gophergala2016/goad"
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/dustin/go-humanize"
 	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
+	"github.com/gophergala2016/goad/helpers"
 	"github.com/gophergala2016/goad/queue"
 )
 
@@ -25,6 +26,7 @@ var (
 	regions     string
 	method      string
 	body        string
+	headers     helpers.StringsliceFlag
 )
 
 const coldef = termbox.ColorDefault
@@ -38,6 +40,7 @@ func main() {
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
+	flag.Var(&headers, "H", "List of headers")
 	flag.Parse()
 
 	if url == "" {
@@ -53,6 +56,7 @@ func main() {
 		Regions:        strings.Split(regions, ","),
 		Method:         method,
 		Body:           body,
+		Headers:        headers,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
