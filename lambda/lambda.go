@@ -221,6 +221,7 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		req, err := http.NewRequest(requestMethod, address, bytes.NewBufferString(requestBody))
 		if err != nil {
 			fmt.Println("Error creating the HTTP request:", err)
+			return
 		}
 		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		req.Header.Add("Accept-Encoding", "gzip")
