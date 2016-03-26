@@ -6,6 +6,7 @@ lambda:
 
 bindata: lambda
 	go-bindata -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
+	cp infrastructure/bindata.go cli/vendor/github.com/goadapp/goad/infrastructure
 
 linux: bindata
 	GOOS=linux GOARCH=amd64 go build -o ./build/linux/x86-64/goad ./cli
