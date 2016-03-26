@@ -4,6 +4,7 @@ data/lambda.zip
 data/lambda/goad-lambda
 infrastructure/bindata.go
 site/Upstatic
+build/
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
