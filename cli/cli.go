@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gophergala2016/goad"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/dustin/go-humanize"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/nsf/termbox-go"
-	"github.com/gophergala2016/goad/helpers"
-	"github.com/gophergala2016/goad/queue"
+	"github.com/dustin/go-humanize"
+	"github.com/goadapp/goad"
+	"github.com/goadapp/goad/helpers"
+	"github.com/goadapp/goad/queue"
+	"github.com/nsf/termbox-go"
 )
 
 var (

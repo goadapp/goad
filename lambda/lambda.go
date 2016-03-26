@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
-	"github.com/gophergala2016/goad/helpers"
-	"github.com/gophergala2016/goad/queue"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/goadapp/goad/helpers"
+	"github.com/goadapp/goad/queue"
 )
 
 func main() {

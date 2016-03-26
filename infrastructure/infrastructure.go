@@ -3,13 +3,13 @@ package infrastructure
 import (
 	"time"
 
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/aws/session"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/service/iam"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/gophergala2016/goad/Godeps/_workspace/src/github.com/satori/go.uuid"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/satori/go.uuid"
 )
 
 type Infrastructure struct {
