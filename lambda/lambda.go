@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -54,7 +55,11 @@ func main() {
 	reportingFrequency, _ := time.ParseDuration(frequency)
 	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
-	client := &http.Client{}
+	// InsecureSkipVerify so that sites with self signed certs can be tested
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	client.Timeout = clientTimeout
 
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
