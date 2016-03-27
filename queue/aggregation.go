@@ -39,7 +39,7 @@ func (d *RegionsAggData) allRequestsReceived() bool {
 	return requests == d.TotalExpectedRequests
 }
 
-func addResult(data *AggData, result *AggData) {
+func addResult(data *AggData, result *AggData, isFinalSum bool) {
 	initialDataTot := data.TotalReqs
 	initialDataTot64 := int64(data.TotalReqs)
 	data.TotalReqs += result.TotalReqs
@@ -49,8 +49,13 @@ func addResult(data *AggData, result *AggData) {
 	if dataTot64 > 0 {
 		data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
 		data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
-		data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
-		data.AveKBytesPerSec = (data.AveKBytesPerSec*float32(initialDataTot) + result.AveKBytesPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+		if isFinalSum {
+			data.AveReqPerSec = data.AveReqPerSec + result.AveReqPerSec
+			data.AveKBytesPerSec = data.AveKBytesPerSec + result.AveKBytesPerSec
+		} else {
+			data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+			data.AveKBytesPerSec = (data.AveKBytesPerSec*float32(initialDataTot) + result.AveKBytesPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+		}
 	}
 	data.TotBytesRead += result.TotBytesRead
 
@@ -71,7 +76,7 @@ func SumRegionResults(regionData *RegionsAggData) *AggData {
 	var totals AggData
 	totals.Statuses = make(map[string]int)
 	for _, data := range regionData.Regions {
-		addResult(&totals, &data)
+		addResult(&totals, &data, true)
 	}
 	return &totals
 }
@@ -97,7 +102,7 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 				regionData.Statuses = make(map[string]int)
 				regionData.Region = result.Region
 			}
-			addResult(&regionData, result)
+			addResult(&regionData, result, false)
 			data.Regions[result.Region] = regionData
 			results <- data
 			if data.allRequestsReceived() {
