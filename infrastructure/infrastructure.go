@@ -9,9 +9,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/goadapp/goad/version"
 	"github.com/satori/go.uuid"
 )
 
+// Infrastructure manages the resource creation and updates necessary to use
+// Goad.
 type Infrastructure struct {
 	config   *aws.Config
 	queueURL string
@@ -48,7 +51,7 @@ func (infra *Infrastructure) setup() error {
 		return err
 	}
 	for _, region := range infra.regions {
-		err = infra.createLambdaFunction(region, roleArn, zip)
+		err = infra.createOrUpdateLambdaFunction(region, roleArn, zip)
 		if err != nil {
 			return err
 		}
@@ -61,10 +64,68 @@ func (infra *Infrastructure) setup() error {
 	return nil
 }
 
-func (infra *Infrastructure) createLambdaFunction(region, roleArn string, payload []byte) error {
+func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte) error {
 	config := aws.NewConfig().WithRegion(region)
 	svc := lambda.New(session.New(), config)
 
+	exists, err := lambdaExists(svc)
+
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		aliasExists, err := lambdaAliasExists(svc)
+		if err != nil || aliasExists {
+			return err
+		}
+		return infra.updateLambdaFunction(svc, roleArn, payload)
+	}
+
+	return infra.createLambdaFunction(svc, roleArn, payload)
+}
+
+func (infra *Infrastructure) createLambdaFunction(svc *lambda.Lambda, roleArn string, payload []byte) error {
+	function, err := svc.CreateFunction(&lambda.CreateFunctionInput{
+		Code: &lambda.FunctionCode{
+			ZipFile: payload,
+		},
+		FunctionName: aws.String("goad"),
+		Handler:      aws.String("index.handler"),
+		Role:         aws.String(roleArn),
+		Runtime:      aws.String("nodejs"),
+		MemorySize:   aws.Int64(1536),
+		Publish:      aws.Bool(true),
+		Timeout:      aws.Int64(300),
+	})
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			// Calling this function too soon after creating the role might
+			// fail, so we should retry after a little while.
+			// TODO: limit the number of retries.
+			if awsErr.Code() == "InvalidParameterValueException" {
+				time.Sleep(time.Second)
+				return infra.createLambdaFunction(svc, roleArn, payload)
+			}
+		}
+		return err
+	}
+	return createLambdaAlias(svc, function.Version)
+}
+
+func (infra *Infrastructure) updateLambdaFunction(svc *lambda.Lambda, roleArn string, payload []byte) error {
+	function, err := svc.UpdateFunctionCode(&lambda.UpdateFunctionCodeInput{
+		ZipFile:      payload,
+		FunctionName: aws.String("goad"),
+		Publish:      aws.Bool(true),
+	})
+	if err != nil {
+		return err
+	}
+	return createLambdaAlias(svc, function.Version)
+}
+
+func lambdaExists(svc *lambda.Lambda) (bool, error) {
 	_, err := svc.GetFunction(&lambda.GetFunctionInput{
 		FunctionName: aws.String("goad"),
 	})
@@ -72,35 +133,40 @@ func (infra *Infrastructure) createLambdaFunction(region, roleArn string, payloa
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "ResourceNotFoundException" {
-				_, err := svc.CreateFunction(&lambda.CreateFunctionInput{
-					Code: &lambda.FunctionCode{
-						ZipFile: payload,
-					},
-					FunctionName: aws.String("goad"),
-					Handler:      aws.String("index.handler"),
-					Role:         aws.String(roleArn),
-					Runtime:      aws.String("nodejs"),
-					MemorySize:   aws.Int64(1536),
-					Publish:      aws.Bool(true),
-					Timeout:      aws.Int64(300),
-				})
-				if err != nil {
-					if awsErr, ok := err.(awserr.Error); ok {
-						// Calling this function too soon after creating the role might
-						// fail, so we should retry after a little while.
-						// TODO: limit the number of retries.
-						if awsErr.Code() == "InvalidParameterValueException" {
-							time.Sleep(time.Second)
-							return infra.createLambdaFunction(region, roleArn, payload)
-						}
-					}
-					return err
-				}
+				return false, nil
 			}
 		}
+		return false, err
 	}
 
-	return nil
+	return true, nil
+}
+
+func createLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
+	_, err := svc.CreateAlias(&lambda.CreateAliasInput{
+		FunctionName:    aws.String("goad"),
+		FunctionVersion: functionVersion,
+		Name:            aws.String(version.LambdaVersion()),
+	})
+	return err
+}
+
+func lambdaAliasExists(svc *lambda.Lambda) (bool, error) {
+	_, err := svc.GetAlias(&lambda.GetAliasInput{
+		FunctionName: aws.String("goad"),
+		Name:         aws.String(version.LambdaVersion()),
+	})
+
+	if err != nil {
+		if awsErr, ok := err.(awserr.Error); ok {
+			if awsErr.Code() == "ResourceNotFoundException" {
+				return false, nil
+			}
+		}
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, err error) {
@@ -112,7 +178,7 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "NoSuchEntity" {
-				resp, err := svc.CreateRole(&iam.CreateRoleInput{
+				res, err := svc.CreateRole(&iam.CreateRoleInput{
 					AssumeRolePolicyDocument: aws.String(`{
         	          "Version": "2012-10-17",
         	          "Statement": {
@@ -130,7 +196,7 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				if err := infra.createIAMLambdaRolePolicy(*resp.Role.RoleName); err != nil {
 					return "", err
 				}
-				return *resp.Role.Arn, nil
+				return *res.Role.Arn, nil
 			}
 		} else {
 			return "", err
