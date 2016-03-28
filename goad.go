@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/goadapp/goad/infrastructure"
@@ -28,6 +29,7 @@ type TestConfig struct {
 	Method         string
 	Body           string
 	Headers        []string
+	AwsProfile     string
 }
 
 type invokeArgs struct {
@@ -61,6 +63,15 @@ func NewTest(config *TestConfig) (*Test, error) {
 // Start a test
 func (t *Test) Start() <-chan queue.RegionsAggData {
 	awsConfig := aws.NewConfig().WithRegion(t.config.Regions[0])
+
+	if t.config.AwsProfile != "" {
+		creds := credentials.NewSharedCredentials("", t.config.AwsProfile)
+		if _, err := creds.Get(); err != nil {
+			log.Fatal(err)
+		}
+		awsConfig.WithCredentials(creds)
+	}
+
 	infra, err := infrastructure.New(t.config.Regions, awsConfig)
 	if err != nil {
 		log.Fatal(err)

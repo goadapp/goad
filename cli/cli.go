@@ -27,6 +27,7 @@ var (
 	method      string
 	body        string
 	headers     helpers.StringsliceFlag
+	awsProfile  string
 )
 
 const coldef = termbox.ColorDefault
@@ -40,6 +41,7 @@ func main() {
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
+	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
 	flag.Var(&headers, "H", "List of headers")
 	flag.Parse()
 
@@ -57,6 +59,7 @@ func main() {
 		Method:         method,
 		Body:           body,
 		Headers:        headers,
+		AwsProfile:     awsProfile,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
