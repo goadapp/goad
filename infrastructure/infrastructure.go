@@ -198,9 +198,8 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				}
 				return *res.Role.Arn, nil
 			}
-		} else {
-			return "", err
 		}
+		return "", err
 	}
 
 	return *resp.Role.Arn, nil
