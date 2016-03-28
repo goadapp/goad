@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/goadapp/goad/infrastructure"
 	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/version"
 )
 
 // TestConfig type
@@ -137,7 +138,7 @@ func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
 	j, _ := json.Marshal(args)
 
 	svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad"),
+		FunctionName: aws.String("goad:" + version.LambdaVersion()),
 		InvokeArgs:   bytes.NewReader(j),
 	})
 }
