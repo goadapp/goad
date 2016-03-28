@@ -5,6 +5,7 @@ lambda:
 	zip -jr data/lambda data/lambda
 
 bindata: lambda
+	go get github.com/jteeuwen/go-bindata/...
 	go-bindata -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
 
 linux: bindata
