@@ -91,6 +91,15 @@ Goad takes full advantage of the power of Amazon Lambdas and Go's concurrency fo
 
 ![Goad diagram](https://goad.io/assets/diagram.svg)
 
+Running Goad will create the following AWS resources:
+
+- An IAM Role for the lambda function.
+- An IAM Role Policy that allows the lambda function to send messages to SQS and publish logs.
+- A lambda function.
+- An SQS queue for the test.
+
+A new SQS queue is created for each test run, and automatically deleted after the test is completed. The other AWS resources are reused in subsequent tests.
+
 ## How it was built
 
 ### Go CLI and server
