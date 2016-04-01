@@ -15,6 +15,7 @@ import (
 	"github.com/goadapp/goad"
 	"github.com/goadapp/goad/helpers"
 	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
 )
 
@@ -34,6 +35,8 @@ const coldef = termbox.ColorDefault
 const nano = 1000000000
 
 func main() {
+	var printVersion bool
+
 	flag.StringVar(&url, "u", "", "URL to load test (required)")
 	flag.StringVar(&method, "m", "GET", "HTTP method")
 	flag.StringVar(&body, "b", "", "HTTP request body")
@@ -43,7 +46,13 @@ func main() {
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
 	flag.Var(&headers, "H", "List of headers")
+	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
 	flag.Parse()
+
+	if printVersion {
+		fmt.Println(version.Version)
+		os.Exit(0)
+	}
 
 	if url == "" {
 		flag.Usage()
