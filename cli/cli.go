@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -14,69 +13,49 @@ import (
 	"syscall"
 	"time"
 
+	"gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/dustin/go-humanize"
 	"github.com/goadapp/goad"
-	"github.com/goadapp/goad/helpers"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
 )
 
 var (
-	url         string
-	concurrency uint
-	requests    uint
-	execTimeout uint
-	timeout     uint
-	regions     string
-	method      string
-	body        string
-	headers     helpers.StringsliceFlag
-	awsProfile  string
-	outputFile  string
+	app         = kingpin.New("goad", "An AWS Lambda powered load testing tool")
+	url         = app.Flag("url", "URL to load test").Short('u').Required().String()
+	method      = app.Flag("method", "HTTP method").Short('m').Default("GET").String()
+	body        = app.Flag("body", "HTTP request body").Short('b').String()
+	concurrency = app.Flag("concurrency", "Number of concurrent requests").Short('c').Default("10").Uint()
+	requests    = app.Flag("requests", "Total number of requests to make").Short('n').Default("10").Uint()
+	execTimeout = app.Flag("execution-time", "Maximum execution time in seconds").Short('N').Default("3600").Uint()
+	timeout     = app.Flag("timeout", "Request timeout in seconds").Short('t').Default("15").Uint()
+	regions     = app.Flag("regions", "AWS regions to run in (comma separated, no spaces)").Short('r').Default("us-east-1,eu-west-1,ap-northeast-1").String()
+	awsProfile  = app.Flag("aws-profile", "AWS named profile to use").Short('p').String()
+	outputFile  = app.Flag("output", "Optional path to JSON file for result storage").Short('o').String()
+	headers     = app.Flag("headers", "List of headers").Short('H').Strings()
 )
 
 const coldef = termbox.ColorDefault
 const nano = 1000000000
 
 func main() {
-	var printVersion bool
-
-	flag.StringVar(&url, "u", "", "URL to load test (required)")
-	flag.StringVar(&method, "m", "GET", "HTTP method")
-	flag.StringVar(&body, "b", "", "HTTP request body")
-	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
-	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
-	flag.UintVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
-	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
-	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
-	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
-	flag.StringVar(&outputFile, "o", "", "Optional path to JSON file for result storage")
-	flag.Var(&headers, "H", "List of headers")
-	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
-	flag.Parse()
-
-	if printVersion {
-		fmt.Println(version.Version)
-		os.Exit(0)
-	}
-
-	if url == "" {
-		flag.Usage()
-		os.Exit(0)
-	}
+	app.HelpFlag.Short('h')
+	app.Version(version.Version)
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	test, testerr := goad.NewTest(&goad.TestConfig{
-		URL:            url,
-		Concurrency:    concurrency,
-		TotalRequests:  requests,
-		ExecTimeout:    execTimeout,
-		RequestTimeout: time.Duration(timeout) * time.Second,
-		Regions:        strings.Split(regions, ","),
-		Method:         method,
-		Body:           body,
-		Headers:        headers,
-		AwsProfile:     awsProfile,
+		URL:            *url,
+		Concurrency:    *concurrency,
+		TotalRequests:  *requests,
+		ExecTimeout:    *execTimeout,
+		RequestTimeout: time.Duration(*timeout) * time.Second,
+		Regions:        strings.Split(*regions, ","),
+		Method:         *method,
+		Body:           *body,
+		Headers:        *headers,
+		AwsProfile:     *awsProfile,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
@@ -86,8 +65,8 @@ func main() {
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)
 
-	if outputFile != "" {
-		defer saveJSONSummary(outputFile, &finalResult)
+	if *outputFile != "" {
+		defer saveJSONSummary(*outputFile, &finalResult)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -159,7 +138,7 @@ outer:
 			if result.TotalExpectedRequests > 0 {
 				percentDone = float64(totalReqs) / float64(result.TotalExpectedRequests)
 			} else {
-				percentDone = math.Min(float64(time.Since(startTime).Seconds()) / float64(test.Config.ExecTimeout), 1.0)
+				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Config.ExecTimeout), 1.0)
 			}
 			drawProgressBar(percentDone, y)
 
