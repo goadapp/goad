@@ -62,22 +62,24 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 
 ```sh
 # Get help:
-$ goad -h
-Usage of goad:
-  -c uint
-      number of concurrent requests (default 10)
-  -m string
-      HTTP method (default "GET")
-  -n uint
-      number of total requests to make (default 1000)
-  -r string
-      AWS regions to run in (comma separated, no spaces) (default "us-east-1")
-  -t uint
-      request timeout in seconds (default 15)
-  -u string
-      URL to load test (required)
-  -H string
-      HTTP Header to add to the request. This option can be set multiple times.
+$ goad --help
+usage: goad --url=URL [<flags>]
+
+A command-line chat application.
+
+Flags:
+  -h, --help                     Show context-sensitive help (also try --help-long and --help-man).
+  -u, --url=URL                  URL to load test
+  -m, --method="GET"             HTTP method
+  -b, --body=BODY                HTTP request body
+  -c, --concurrency=10           Number of concurrent requests
+  -n, --requests=10              Total number of requests to make
+  -t, --timeout=15               Request timeout in seconds
+  -r, --regions="us-east-1,eu-west-1,ap-northeast-1"
+                                 AWS regions to run in (comma separated, no spaces)
+  -p, --aws-profile=AWS-PROFILE  AWS named profile to use
+  -H, --headers=HEADERS ...      List of headers
+      --version                  Show application version.
 
 # For example:
 $ goad -n 1000 -c 5 -u https://example.com
