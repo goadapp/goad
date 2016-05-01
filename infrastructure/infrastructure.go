@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -23,9 +24,9 @@ type Infrastructure struct {
 
 // New creates the required infrastructure to run the load tests in Lambda
 // functions.
-func New(regions []string, config *aws.Config) (*Infrastructure, error) {
+func New(regions []string, config *aws.Config, messages chan string) (*Infrastructure, error) {
 	infra := &Infrastructure{config: config, regions: regions}
-	if err := infra.setup(); err != nil {
+	if err := infra.setup(messages); err != nil {
 		return nil, err
 	}
 	return infra, nil
@@ -41,8 +42,9 @@ func (infra *Infrastructure) Clean() {
 	infra.removeSQSQueue()
 }
 
-func (infra *Infrastructure) setup() error {
-	roleArn, err := infra.createIAMLambdaRole("goad-lambda-role")
+func (infra *Infrastructure) setup(messages chan string) error {
+	messages <- "Creating goad-lambda-role"
+	roleArn, err := infra.createIAMLambdaRole("goad-lambda-role", messages)
 	if err != nil {
 		return err
 	}
@@ -51,23 +53,27 @@ func (infra *Infrastructure) setup() error {
 		return err
 	}
 	for _, region := range infra.regions {
-		err = infra.createOrUpdateLambdaFunction(region, roleArn, zip)
+		messages <- fmt.Sprintf("Creating lambda in region %s", region)
+		err = infra.createOrUpdateLambdaFunction(region, roleArn, zip, messages)
 		if err != nil {
 			return err
 		}
 	}
+	messages <- "Creating SQS queue"
 	queueURL, err := infra.createSQSQueue()
 	if err != nil {
 		return err
 	}
+	messages <- "Created SQS queue"
 	infra.queueURL = queueURL
 	return nil
 }
 
-func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte) error {
+func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte, messages chan string) error {
 	config := aws.NewConfig().WithRegion(region)
 	svc := lambda.New(session.New(), config)
 
+	messages <- "Checking if lambda exists"
 	exists, err := lambdaExists(svc)
 
 	if err != nil {
@@ -75,6 +81,7 @@ func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string
 	}
 
 	if exists {
+		messages <- "Checking if it needs updating"
 		aliasExists, err := lambdaAliasExists(svc)
 		if err != nil || aliasExists {
 			return err
@@ -82,6 +89,7 @@ func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string
 		return infra.updateLambdaFunction(svc, roleArn, payload)
 	}
 
+	messages <- "Creating lambda function"
 	return infra.createLambdaFunction(svc, roleArn, payload)
 }
 
@@ -169,15 +177,18 @@ func lambdaAliasExists(svc *lambda.Lambda) (bool, error) {
 	return true, nil
 }
 
-func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, err error) {
+func (infra *Infrastructure) createIAMLambdaRole(roleName string, messages chan string) (arn string, err error) {
+	messages <- "Creating IAM session"
 	svc := iam.New(session.New(), infra.config)
 
+	messages <- "Checking for role"
 	resp, err := svc.GetRole(&iam.GetRoleInput{
 		RoleName: aws.String(roleName),
 	})
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "NoSuchEntity" {
+				messages <- "Creating role"
 				res, err := svc.CreateRole(&iam.CreateRoleInput{
 					AssumeRolePolicyDocument: aws.String(`{
         	          "Version": "2012-10-17",
@@ -193,6 +204,7 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				if err != nil {
 					return "", err
 				}
+				if err := infra.createIAMLambdaRolePolicy(*resp.Role.RoleName, messages); err != nil {
 					return "", err
 				}
 				return *res.Role.Arn, nil
