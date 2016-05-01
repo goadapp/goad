@@ -33,6 +33,8 @@ var (
 
 const coldef = termbox.ColorDefault
 const nano = 1000000000
+const messageRows = 8
+const messageStartRow = 9
 
 func main() {
 	var printVersion bool
@@ -96,7 +98,32 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 	renderLogo()
 	termbox.Flush()
 
-	resultChan := test.Start()
+	messages := make(chan string)
+	go func() {
+		curRow := messageStartRow
+		totReceived := 0
+		messagesReceived := []string{}
+		for {
+			if curRow == messageStartRow+messageRows-1 {
+				// scroll
+				for i := 0; i < messageRows-1; i++ {
+					renderString(0, i+messageStartRow, fmt.Sprintf("%40s", ""), coldef, coldef)
+					renderString(0, i+messageStartRow, messagesReceived[totReceived-messageRows+1+i], coldef, coldef)
+				}
+				renderString(0, curRow, fmt.Sprintf("%40s", ""), coldef, coldef)
+			}
+			msg := <-messages
+			messagesReceived = append(messagesReceived, msg)
+			totReceived++
+			renderString(0, curRow, msg, coldef, coldef)
+			termbox.Flush()
+			if curRow < messageStartRow+messageRows-1 {
+				curRow++
+			}
+		}
+	}()
+
+	resultChan := test.Start(messages)
 
 	_, h := termbox.Size()
 	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
@@ -122,6 +149,7 @@ outer:
 
 			if firstTime {
 				clearLogo()
+				clearMessages()
 				firstTime = false
 			}
 
@@ -170,7 +198,13 @@ func renderLogo() {
 // Also clears loading message
 func clearLogo() {
 	for i := 0; i < 8; i++ {
-		renderString(0, i, "                                ", coldef, coldef)
+		renderString(0, i, fmt.Sprintf("%32s", ""), coldef, coldef)
+	}
+}
+
+func clearMessages() {
+	for i := 0; i < messageRows; i++ {
+		renderString(0, i+messageStartRow, fmt.Sprintf("%40s", ""), coldef, coldef)
 	}
 }
 

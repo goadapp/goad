@@ -193,7 +193,6 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				if err != nil {
 					return "", err
 				}
-				if err := infra.createIAMLambdaRolePolicy(*resp.Role.RoleName); err != nil {
 					return "", err
 				}
 				return *res.Role.Arn, nil
@@ -205,9 +204,11 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 	return *resp.Role.Arn, nil
 }
 
-func (infra *Infrastructure) createIAMLambdaRolePolicy(roleName string) error {
+func (infra *Infrastructure) createIAMLambdaRolePolicy(roleName string, messages chan string) error {
+	messages <- "Creating IAM session"
 	svc := iam.New(session.New(), infra.config)
 
+	messages <- "Adding policy"
 	_, err := svc.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyDocument: aws.String(`{
           "Version": "2012-10-17",

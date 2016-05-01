@@ -63,10 +63,12 @@ func NewTest(config *TestConfig) (*Test, error) {
 }
 
 // Start a test
-func (t *Test) Start() <-chan queue.RegionsAggData {
+func (t *Test) Start(messages chan string) <-chan queue.RegionsAggData {
+	messages <- "Setting up config"
 	awsConfig := aws.NewConfig().WithRegion(t.config.Regions[0])
 
 	if t.config.AwsProfile != "" {
+		messages <- "Getting credentials"
 		creds := credentials.NewSharedCredentials("", t.config.AwsProfile)
 		if _, err := creds.Get(); err != nil {
 			log.Fatal(err)
@@ -74,11 +76,13 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 		awsConfig.WithCredentials(creds)
 	}
 
-	infra, err := infrastructure.New(t.config.Regions, awsConfig)
+	messages <- "Creating AWS infrastructure"
+	infra, err := infrastructure.New(t.config.Regions, awsConfig, messages)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	messages <- "Invoking lambdas"
 	t.invokeLambdas(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
