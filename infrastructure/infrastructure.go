@@ -193,7 +193,7 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				if err != nil {
 					return "", err
 				}
-				if err := infra.createIAMLambdaRolePolicy(*resp.Role.RoleName); err != nil {
+				if err := infra.createIAMLambdaRolePolicy(*res.Role.RoleName); err != nil {
 					return "", err
 				}
 				return *res.Role.Arn, nil
