@@ -94,35 +94,12 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 
 	defer termbox.Close()
 	termbox.Sync()
-	renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
 	renderLogo()
 	termbox.Flush()
 
 	messages := make(chan string)
-	go func() {
-		curRow := messageStartRow
-		totReceived := 0
-		messagesReceived := []string{}
-		for {
-			if curRow == messageStartRow+messageRows-1 {
-				// scroll
-				for i := 0; i < messageRows-1; i++ {
-					renderString(0, i+messageStartRow, fmt.Sprintf("%40s", ""), coldef, coldef)
-					renderString(0, i+messageStartRow, messagesReceived[totReceived-messageRows+1+i], coldef, coldef)
-				}
-				renderString(0, curRow, fmt.Sprintf("%40s", ""), coldef, coldef)
-			}
-			msg := <-messages
-			messagesReceived = append(messagesReceived, msg)
-			totReceived++
-			renderString(0, curRow, msg, coldef, coldef)
-			termbox.Flush()
-			if curRow < messageStartRow+messageRows-1 {
-				curRow++
-			}
-		}
-	}()
-
+	go receiveMessages(messages)
+	messages <- "Launching on AWS..."
 	resultChan := test.Start(messages)
 
 	_, h := termbox.Size()
@@ -181,6 +158,30 @@ outer:
 	}
 }
 
+func receiveMessages(messages chan string) {
+	curRow := messageStartRow
+	totReceived := 0
+	messagesReceived := []string{}
+	for {
+		msg := <-messages
+		if curRow == messageStartRow+messageRows-1 {
+			// scroll
+			for i := 0; i < messageRows-1; i++ {
+				renderString(0, i+messageStartRow, fmt.Sprintf("%40s", ""), coldef, coldef)
+				renderString(0, i+messageStartRow, messagesReceived[totReceived-messageRows+1+i], coldef, coldef)
+			}
+			renderString(0, curRow, fmt.Sprintf("%40s", ""), coldef, coldef)
+		}
+		messagesReceived = append(messagesReceived, msg)
+		totReceived++
+		renderString(0, curRow, msg, coldef, coldef)
+		termbox.Flush()
+		if curRow < messageStartRow+messageRows-1 {
+			curRow++
+		}
+	}
+}
+
 func renderLogo() {
 	s1 := `	  _____                 _`
 	s2 := `  / ____|               | |`
@@ -191,13 +192,12 @@ func renderLogo() {
 	s7 := " Global load testing with Go"
 	arr := [...]string{s1, s2, s3, s4, s5, s6, s7}
 	for i, str := range arr {
-		renderString(0, i+1, str, coldef, coldef)
+		renderString(0, i, str, coldef, coldef)
 	}
 }
 
-// Also clears loading message
 func clearLogo() {
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 7; i++ {
 		renderString(0, i, fmt.Sprintf("%32s", ""), coldef, coldef)
 	}
 }
