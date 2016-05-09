@@ -159,9 +159,9 @@ func numberOfLambdas(concurrency uint, numRegions int) int {
 	if numRegions > int(concurrency) {
 		return int(concurrency)
 	}
-	if concurrency/300 > 250 { // > 75.000
+	if concurrency/200 > 350 { // > 70.000
 		return 500
-	} else if concurrency/100 > 100 { // 10.000 <> 75.000
+	} else if concurrency/100 > 100 { // 10.000 <> 70.000
 		return 300
 	} else if concurrency/10 > 100 { // 1.000 <> 10.000
 		return 100
