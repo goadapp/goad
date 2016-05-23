@@ -232,7 +232,11 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		req.Header.Add("Accept-Encoding", "gzip")
 		for _, v := range requestHeaders {
 			header := strings.Split(v, ":")
-			req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+			if strings.ToLower(strings.Trim(header[0], " ")) == "host" {
+				req.Host = strings.Trim(header[1], " ")
+			} else {
+				req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+			}
 		}
 
 		response, err := client.Do(req)
