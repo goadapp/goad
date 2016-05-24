@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"sort"
@@ -29,6 +31,7 @@ var (
 	body        string
 	headers     helpers.StringsliceFlag
 	awsProfile  string
+	outputFile  string
 )
 
 const coldef = termbox.ColorDefault
@@ -45,6 +48,7 @@ func main() {
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
+	flag.StringVar(&outputFile, "o", "", "Optional path to JSON file for result storage")
 	flag.Var(&headers, "H", "List of headers")
 	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
 	flag.Parse()
@@ -77,6 +81,10 @@ func main() {
 
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)
+
+	if outputFile != "" {
+		defer saveJsonSummary(outputFile, &finalResult)
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
@@ -271,4 +279,29 @@ func printSummary(result *queue.RegionsAggData) {
 		fmt.Printf("%10s %10d\n", statusStr, value)
 	}
 	fmt.Println("")
+}
+
+func saveJsonSummary(path string, result *queue.RegionsAggData) {
+	if len(result.Regions) == 0 {
+		return
+	}
+	results := make(map[string]queue.AggData)
+
+	for region, data := range result.Regions {
+		results[region] = data
+	}
+
+	overall := queue.SumRegionResults(result)
+
+	results["overall"] = *overall
+	b, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	err = ioutil.WriteFile(path, b, 0644)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
