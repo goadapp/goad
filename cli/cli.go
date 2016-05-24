@@ -83,7 +83,7 @@ func main() {
 	defer printSummary(&finalResult)
 
 	if outputFile != "" {
-		defer saveJsonSummary(outputFile, &finalResult)
+		defer saveJSONSummary(outputFile, &finalResult)
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -281,7 +281,7 @@ func printSummary(result *queue.RegionsAggData) {
 	fmt.Println("")
 }
 
-func saveJsonSummary(path string, result *queue.RegionsAggData) {
+func saveJSONSummary(path string, result *queue.RegionsAggData) {
 	if len(result.Regions) == 0 {
 		return
 	}
