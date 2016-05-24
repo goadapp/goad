@@ -297,11 +297,11 @@ func saveJsonSummary(path string, result *queue.RegionsAggData) {
 	b, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		return
 	}
 	err = ioutil.WriteFile(path, b, 0644)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		return
 	}
 }
