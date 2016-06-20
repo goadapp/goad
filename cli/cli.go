@@ -27,6 +27,7 @@ var (
 	regions     string
 	method      string
 	body        string
+	hostHeader  string
 	headers     helpers.StringsliceFlag
 	awsProfile  string
 )
@@ -45,6 +46,7 @@ func main() {
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
+	flag.StringVar(&hostHeader, "e", "", "Explicit Host header to send with the request")
 	flag.Var(&headers, "H", "List of headers")
 	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
 	flag.Parse()
@@ -69,6 +71,7 @@ func main() {
 		Body:           body,
 		Headers:        headers,
 		AwsProfile:     awsProfile,
+		HostHeader:     hostHeader,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
