@@ -31,6 +31,7 @@ type TestConfig struct {
 	Body           string
 	Headers        []string
 	AwsProfile     string
+	HostHeader     string
 }
 
 type invokeArgs struct {
@@ -128,6 +129,11 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			fmt.Sprintf("%s", c.Method),
 			"-b",
 			fmt.Sprintf("%s", c.Body),
+		}
+
+		if c.HostHeader != "" {
+			// args = append([]string{"-e", fmt.Sprintf("%s", c.HostHeader)}, args...)
+			args = append(args, "-e", fmt.Sprintf("%s", c.HostHeader))
 		}
 
 		for _, v := range t.config.Headers {
