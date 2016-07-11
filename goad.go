@@ -139,7 +139,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			Args: args,
 		}
 
-		config := aws.NewConfig().WithRegion(region)
+		config := awsConfig.WithRegion(region)
 		go t.invokeLambda(config, invokeargs)
 	}
 }
