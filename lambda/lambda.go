@@ -228,7 +228,6 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			fmt.Println("Error creating the HTTP request:", err)
 			return
 		}
-		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		req.Header.Add("Accept-Encoding", "gzip")
 		for _, v := range requestHeaders {
 			header := strings.Split(v, ":")
@@ -237,6 +236,10 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			} else {
 				req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
 			}
+		}
+
+		if req.Header.Get("User-Agent") == "" {
+			req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		}
 
 		response, err := client.Do(req)
