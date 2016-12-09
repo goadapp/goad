@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +12,8 @@ func init() {
 }
 
 func TestAdaptorConstruction(t *testing.T) {
-	testsqs := NewSQSAdaptor("testqueue")
+	config := aws.NewConfig().WithRegion("somewhere")
+	testsqs := NewSQSAdaptor(config, "testqueue")
 	assert.Equal(t, testsqs.QueueURL, "testqueue")
 }
 
