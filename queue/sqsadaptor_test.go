@@ -38,5 +38,5 @@ func TestJSON(t *testing.T) {
 		fmt.Println(jsonerr)
 		return
 	}
-	assert.Equal(t, str, "{\"total-reqs\":299,\"total-timed-out\":234,\"ave-time-to-first\":9999,\"tot-bytes-read\":2136,\"statuses\":{},\"ave-time-for-req\":12345,\"ave-req-per-sec\":6789,\"slowest\":4567,\"fastest\":4567,\"region\":\"eu-west\"}")
+	assert.Equal(t, str, "{\"total-reqs\":299,\"total-timed-out\":234,\"total-conn-error\":256,\"ave-time-to-first\":9999,\"tot-bytes-read\":2136,\"statuses\":{},\"ave-time-for-req\":12345,\"ave-req-per-sec\":6789,\"ave-kbytes-per-sec\":6789,\"slowest\":4567,\"fastest\":4567,\"region\":\"eu-west\",\"fatal-error\":\"sorry\"}")
 }
