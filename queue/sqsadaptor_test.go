@@ -19,14 +19,17 @@ func TestJSON(t *testing.T) {
 	result := AggData{
 		299,
 		234,
+		256,
 		int64(9999),
 		2136,
 		make(map[string]int),
 		int64(12345),
-		6789,
+		float32(6789),
+		float32(6789),
 		int64(4567),
 		int64(4567),
 		"eu-west",
+		"sorry",
 	}
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
