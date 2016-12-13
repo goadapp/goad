@@ -46,6 +46,9 @@ var supportedRegions = []string{
 	"eu-west-1",
 	"ap-northeast-1",
 	"eu-central-1",
+	"ap-northeast-2",
+	"ap-southeast-1",
+	"ap-southeast-2",
 }
 
 // Test type
