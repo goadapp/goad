@@ -65,7 +65,7 @@ func (infra *Infrastructure) setup() error {
 }
 
 func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte) error {
-	config := infra.config.WithRegion(region)
+	config := aws.NewConfig().WithRegion(region)
 	svc := lambda.New(session.New(), config)
 
 	exists, err := lambdaExists(svc)
