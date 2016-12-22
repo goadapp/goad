@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"sort"
@@ -31,6 +33,7 @@ var (
 	body        string
 	headers     helpers.StringsliceFlag
 	awsProfile  string
+	outputFile  string
 )
 
 const coldef = termbox.ColorDefault
@@ -47,6 +50,7 @@ func init() {
 	timeout = *app.Flag("timeout", "Request timeout in seconds").Short('t').Default("15").Uint()
 	regions = *app.Flag("regions", "AWS regions to run in (comma separated, no spaces)").Short('r').Default("us-east-1,eu-west-1,ap-northeast-1").String()
 	awsProfile = *app.Flag("aws-profile", "AWS named profile to use").Short('p').String()
+	outputFile = *app.Flag("output-file", "Optional path to JSON file for result storage").Short('o').String()
 	app.Flag("headers", "List of headers").Short('H').SetValue(&headers)
 
 	app.Version(version.Version)
@@ -73,6 +77,10 @@ func main() {
 
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)
+
+	if outputFile != "" {
+		defer saveJSONSummary(outputFile, &finalResult)
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
@@ -267,4 +275,29 @@ func printSummary(result *queue.RegionsAggData) {
 		fmt.Printf("%10s %10d\n", statusStr, value)
 	}
 	fmt.Println("")
+}
+
+func saveJSONSummary(path string, result *queue.RegionsAggData) {
+	if len(result.Regions) == 0 {
+		return
+	}
+	results := make(map[string]queue.AggData)
+
+	for region, data := range result.Regions {
+		results[region] = data
+	}
+
+	overall := queue.SumRegionResults(result)
+
+	results["overall"] = *overall
+	b, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = ioutil.WriteFile(path, b, 0644)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }

@@ -65,7 +65,7 @@ func (infra *Infrastructure) setup() error {
 }
 
 func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte) error {
-	config := aws.NewConfig().WithRegion(region)
+	config := infra.config.WithRegion(region)
 	svc := lambda.New(session.New(), config)
 
 	exists, err := lambdaExists(svc)
@@ -193,7 +193,7 @@ func (infra *Infrastructure) createIAMLambdaRole(roleName string) (arn string, e
 				if err != nil {
 					return "", err
 				}
-				if err := infra.createIAMLambdaRolePolicy(*resp.Role.RoleName); err != nil {
+				if err := infra.createIAMLambdaRolePolicy(*res.Role.RoleName); err != nil {
 					return "", err
 				}
 				return *res.Role.Arn, nil
