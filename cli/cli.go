@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	app         = kingpin.New("goad", "A command-line chat application.")
+	app         = kingpin.New("goad", "An AWS Lambda powered load testing tool")
 	url         string
 	concurrency uint
 	requests    uint
