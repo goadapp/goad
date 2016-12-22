@@ -65,10 +65,11 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 $ goad --help
 usage: goad --url=URL [<flags>]
 
-A command-line chat application.
+An AWS Lambda powered load testing tool
 
 Flags:
-  -h, --help                     Show context-sensitive help (also try --help-long and --help-man).
+  -h, --help                     Show context-sensitive help (also try
+                                 --help-long and --help-man).
   -u, --url=URL                  URL to load test
   -m, --method="GET"             HTTP method
   -b, --body=BODY                HTTP request body
@@ -76,8 +77,10 @@ Flags:
   -n, --requests=10              Total number of requests to make
   -t, --timeout=15               Request timeout in seconds
   -r, --regions="us-east-1,eu-west-1,ap-northeast-1"
-                                 AWS regions to run in (comma separated, no spaces)
+                                 AWS regions to run in (comma separated, no
+                                 spaces)
   -p, --aws-profile=AWS-PROFILE  AWS named profile to use
+  -o, --output-file=OUTPUT-FILE  Optional path to JSON file for result storage
   -H, --headers=HEADERS ...      List of headers
       --version                  Show application version.
 
