@@ -300,17 +300,17 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		}
 		//fmt.Printf("Request end: %d, elapsed: %d\n", time.Now().Sub(loadTestStartTime).Nanoseconds(), elapsed.Nanoseconds())
 		result := RequestResult{
-			start.Sub(loadTestStartTime).Nanoseconds(),
-			req.URL.Host,
-			req.Method,
-			statusCode,
-			elapsedFirstByte.Nanoseconds(),
-			elapsedLastByte.Nanoseconds(),
-			elapsed.Nanoseconds(),
-			bytesRead,
-			timedOut,
-			connectionError,
-			status,
+			Time:             start.Sub(loadTestStartTime).Nanoseconds(),
+			Host:             req.URL.Host,
+			Type:             req.Method,
+			Status:           statusCode,
+			ElapsedFirstByte: elapsedFirstByte.Nanoseconds(),
+			ElapsedLastByte:  elapsedLastByte.Nanoseconds(),
+			Elapsed:          elapsed.Nanoseconds(),
+			Bytes:            bytesRead,
+			Timeout:          timedOut,
+			ConnectionError:  connectionError,
+			State:            status,
 		}
 		ch <- result
 	}
