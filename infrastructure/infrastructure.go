@@ -92,7 +92,7 @@ func (infra *Infrastructure) createLambdaFunction(svc *lambda.Lambda, roleArn st
 		FunctionName: aws.String("goad"),
 		Handler:      aws.String("index.handler"),
 		Role:         aws.String(roleArn),
-		Runtime:      aws.String("nodejs"),
+		Runtime:      aws.String("nodejs4.3"),
 		MemorySize:   aws.Int64(1536),
 		Publish:      aws.Bool(true),
 		Timeout:      aws.Int64(300),
