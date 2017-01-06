@@ -1,8 +1,6 @@
 package infrastructure
 
 import (
-	"time"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -50,6 +48,7 @@ func (infra *Infrastructure) setup() error {
 	if err != nil {
 		return err
 	}
+
 	for _, region := range infra.regions {
 		err = infra.createOrUpdateLambdaFunction(region, roleArn, zip)
 		if err != nil {
@@ -99,15 +98,6 @@ func (infra *Infrastructure) createLambdaFunction(svc *lambda.Lambda, roleArn st
 		Timeout:      aws.Int64(300),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok {
-			// Calling this function too soon after creating the role might
-			// fail, so we should retry after a little while.
-			// TODO: limit the number of retries.
-			if awsErr.Code() == "InvalidParameterValueException" {
-				time.Sleep(time.Second)
-				return infra.createLambdaFunction(svc, roleArn, payload)
-			}
-		}
 		return err
 	}
 	return createLambdaAlias(svc, function.Version)
