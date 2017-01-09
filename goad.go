@@ -46,6 +46,9 @@ var supportedRegions = []string{
 	"eu-west-1",
 	"ap-northeast-1",
 	"eu-central-1",
+	"ap-northeast-2",
+	"ap-southeast-1",
+	"ap-southeast-2",
 }
 
 // Test type
@@ -163,7 +166,11 @@ func numberOfLambdas(concurrency uint, numRegions int) int {
 	if numRegions > int(concurrency) {
 		return int(concurrency)
 	}
-	if concurrency/10 > 100 {
+	if concurrency/200 > 350 { // > 70.000
+		return 500
+	} else if concurrency/100 > 100 { // 10.000 <> 70.000
+		return 300
+	} else if concurrency/10 > 100 { // 1.000 <> 10.000
 		return 100
 	}
 	if int(concurrency) < 10*numRegions {
@@ -185,8 +192,8 @@ func (c TestConfig) check() error {
 	if c.Concurrency < 1 || c.Concurrency > concurrencyLimit {
 		return fmt.Errorf("Invalid concurrency (use 1 - %d)", concurrencyLimit)
 	}
-	if c.TotalRequests < 1 || c.TotalRequests > 1000000 {
-		return errors.New("Invalid total requests (use 1 - 1000000)")
+	if c.TotalRequests < 1 || c.TotalRequests > 2000000 {
+		return errors.New("Invalid total requests (use 1 - 2000000)")
 	}
 	if c.RequestTimeout.Nanoseconds() < nano || c.RequestTimeout.Nanoseconds() > nano*100 {
 		return errors.New("Invalid timeout (1s - 100s)")

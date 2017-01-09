@@ -228,11 +228,18 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 			fmt.Println("Error creating the HTTP request:", err)
 			return
 		}
-		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		req.Header.Add("Accept-Encoding", "gzip")
 		for _, v := range requestHeaders {
 			header := strings.Split(v, ":")
-			req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+			if strings.ToLower(strings.Trim(header[0], " ")) == "host" {
+				req.Host = strings.Trim(header[1], " ")
+			} else {
+				req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+			}
+		}
+
+		if req.Header.Get("User-Agent") == "" {
+			req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
 		}
 
 		response, err := client.Do(req)
@@ -293,17 +300,17 @@ func fetch(loadTestStartTime time.Time, client *http.Client, address string, req
 		}
 		//fmt.Printf("Request end: %d, elapsed: %d\n", time.Now().Sub(loadTestStartTime).Nanoseconds(), elapsed.Nanoseconds())
 		result := RequestResult{
-			start.Sub(loadTestStartTime).Nanoseconds(),
-			req.URL.Host,
-			req.Method,
-			statusCode,
-			elapsed.Nanoseconds(),
-			elapsedFirstByte.Nanoseconds(),
-			elapsedLastByte.Nanoseconds(),
-			bytesRead,
-			timedOut,
-			connectionError,
-			status,
+			Time:             start.Sub(loadTestStartTime).Nanoseconds(),
+			Host:             req.URL.Host,
+			Type:             req.Method,
+			Status:           statusCode,
+			ElapsedFirstByte: elapsedFirstByte.Nanoseconds(),
+			ElapsedLastByte:  elapsedLastByte.Nanoseconds(),
+			Elapsed:          elapsed.Nanoseconds(),
+			Bytes:            bytesRead,
+			Timeout:          timedOut,
+			ConnectionError:  connectionError,
+			State:            status,
 		}
 		ch <- result
 	}
