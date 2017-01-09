@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -71,15 +72,14 @@ func (infra *Infrastructure) createOrUpdateLambdaFunction(region, roleArn string
 	exists, err := lambdaExists(svc)
 
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	if exists {
 		aliasExists, err := lambdaAliasExists(svc)
 		if err != nil || aliasExists {
-			return err
+			return infra.updateLambdaFunction(svc, roleArn, payload)
 		}
-		return infra.updateLambdaFunction(svc, roleArn, payload)
 	}
 
 	return infra.createLambdaFunction(svc, roleArn, payload)
@@ -122,7 +122,7 @@ func (infra *Infrastructure) updateLambdaFunction(svc *lambda.Lambda, roleArn st
 	if err != nil {
 		return err
 	}
-	return createLambdaAlias(svc, function.Version)
+	return updateLambdaAlias(svc, function.Version)
 }
 
 func lambdaExists(svc *lambda.Lambda) (bool, error) {
@@ -144,6 +144,15 @@ func lambdaExists(svc *lambda.Lambda) (bool, error) {
 
 func createLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
 	_, err := svc.CreateAlias(&lambda.CreateAliasInput{
+		FunctionName:    aws.String("goad"),
+		FunctionVersion: functionVersion,
+		Name:            aws.String(version.LambdaVersion()),
+	})
+	return err
+}
+
+func updateLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
+	_, err := svc.UpdateAlias(&lambda.UpdateAliasInput{
 		FunctionName:    aws.String("goad"),
 		FunctionVersion: functionVersion,
 		Name:            aws.String(version.LambdaVersion()),
