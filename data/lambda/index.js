@@ -1,9 +1,19 @@
-var execFile = require("child_process").execFile;
+var spawn = require("child_process").spawn;
 
 exports.handler = function(event, context) {
-    child = execFile(event.file, event.args, function(error) {
-        context.done(error, "Process complete!");
+    child = spawn(event.file, event.args);
+
+    child.stdout.on("data", function (data) {
+        console.log(data.toString())
     });
-    child.stdout.on("data", console.log);
-    child.stderr.on("data", console.error);
+    child.stderr.on("data", function (data) {
+        console.error(data.toString())
+    });
+    child.on("close", function(code) {
+        if (code == 0) {
+            context.succeed("Process complete!");
+        } else {
+            context.fail("Process failed with exit code: " + code);
+        }
+    });
 };
