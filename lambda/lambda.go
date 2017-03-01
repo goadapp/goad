@@ -33,6 +33,7 @@ func main() {
 		requestMethod    string
 		requestBody      string
 		requestHeaders   helpers.StringsliceFlag
+		showPercentiles  bool
 	)
 
 	flag.StringVar(&address, "u", "", "URL to load test (required)")
@@ -46,6 +47,8 @@ func main() {
 
 	flag.IntVar(&concurrencycount, "c", 10, "number of concurrent requests")
 	flag.IntVar(&maxRequestCount, "n", 1000, "number of total requests to make")
+
+	flag.BoolVar(&showPercentiles, "i", false, "show percentiles")
 
 	flag.Var(&requestHeaders, "H", "List of headers")
 	flag.Parse()
@@ -63,7 +66,7 @@ func main() {
 	client.Timeout = clientTimeout
 
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
-	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion, requestMethod, requestBody, requestHeaders)
+	runLoadTest(client, sqsurl, address, maxRequestCount, concurrencycount, awsregion, reportingFrequency, queueRegion, requestMethod, requestBody, requestHeaders, showPercentiles)
 }
 
 type RequestResult struct {
@@ -80,7 +83,7 @@ type RequestResult struct {
 	State            string `json:"state"`
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string, requestMethod string, requestBody string, requestHeaders []string) {
+func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string, requestMethod string, requestBody string, requestHeaders []string, showPercentiles bool) {
 	awsConfig := aws.NewConfig().WithRegion(queueRegion)
 	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
 	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
@@ -118,6 +121,8 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 		var fastest int64
 		var totalTimedOut int
 		var totalConnectionError int
+		var elapsedTimes helpers.Int64slice
+		percentiles := make(map[int]int64)
 
 		resetStats := false
 		for requestsSoFar < totalRequests && !quitting && !resetStats {
@@ -141,6 +146,10 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 				if r.ConnectionError {
 					totalConnectionError++
 					continue
+				}
+
+				if showPercentiles {
+					elapsedTimes = append(elapsedTimes, r.ElapsedLastByte)
 				}
 
 				if r.ElapsedLastByte > slowest {
@@ -216,6 +225,8 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 			fastest,
 			awsregion,
 			fatalError,
+			percentiles,
+			elapsedTimes,
 		}
 		sqsAdaptor.SendResult(aggData)
 	}

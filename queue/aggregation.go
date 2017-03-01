@@ -1,10 +1,16 @@
 package queue
 
 import (
+	"math"
+	"sort"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/goadapp/goad/helpers"
 )
+
+// Percentile values
+var Percentiles = []int{50, 66, 75, 80, 90, 95, 99, 100}
 
 // AggData type
 type AggData struct {
@@ -21,6 +27,8 @@ type AggData struct {
 	Fastest              int64          `json:"fastest"`
 	Region               string         `json:"region"`
 	FatalError           string         `json:"fatal-error"`
+	Percentiles          map[int]int64  `json:"percentiles"`
+	ElapsedTimes         helpers.Int64slice `json:"elapsed-times"`
 }
 
 // RegionsAggData type
@@ -71,12 +79,27 @@ func addResult(data *AggData, result *AggData, isFinalSum bool) {
 	if result.Fastest > 0 && (data.Fastest == 0 || result.Fastest < data.Fastest) {
 		data.Fastest = result.Fastest
 	}
+
+	if len(result.ElapsedTimes) > 0 {
+		data.ElapsedTimes = append(data.ElapsedTimes, result.ElapsedTimes...)
+		sort.Sort(data.ElapsedTimes)
+
+		size := float64(len(data.ElapsedTimes))
+		for _, v := range Percentiles {
+			i := int(math.Floor(size * float64(v) / 100.0))
+			if i > 0 {
+				data.Percentiles[v] = data.ElapsedTimes[i - 1]
+			}
+		}
+
+	}
 }
 
 // SumRegionResults adds all the results together
 func SumRegionResults(regionData *RegionsAggData) *AggData {
 	var totals AggData
 	totals.Statuses = make(map[string]int)
+	totals.Percentiles = make(map[int]int64)
 	for _, data := range regionData.Regions {
 		addResult(&totals, &data, true)
 	}
@@ -102,6 +125,7 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 			regionData, ok := data.Regions[result.Region]
 			if !ok {
 				regionData.Statuses = make(map[string]int)
+				regionData.Percentiles = make(map[int]int64)
 				regionData.Region = result.Region
 			}
 			addResult(&regionData, result, false)
