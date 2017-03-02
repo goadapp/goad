@@ -3,7 +3,7 @@ package version
 import "strings"
 
 // Version describes the Goad version.
-const Version = "1.2.0"
+const Version = "1.3.0"
 
 // LambdaVersion returns a version string that can be used as a Lambda function
 // alias.
