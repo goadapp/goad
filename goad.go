@@ -31,6 +31,7 @@ type TestConfig struct {
 	Body           string
 	Headers        []string
 	AwsProfile     string
+	ShowPercentiles bool
 }
 
 type invokeArgs struct {
@@ -131,6 +132,9 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			fmt.Sprintf("%s", c.Method),
 			"-b",
 			fmt.Sprintf("%s", c.Body),
+		}
+		if c.ShowPercentiles {
+			args = append(args, "-i", "true")
 		}
 
 		for _, v := range t.config.Headers {

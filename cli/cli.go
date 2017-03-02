@@ -32,6 +32,7 @@ var (
 	headers     helpers.StringsliceFlag
 	awsProfile  string
 	outputFile  string
+	showPercentiles bool
 )
 
 const coldef = termbox.ColorDefault
@@ -49,6 +50,7 @@ func main() {
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
 	flag.StringVar(&outputFile, "o", "", "Optional path to JSON file for result storage")
+	flag.BoolVar(&showPercentiles, "i", false, "show percentiles")
 	flag.Var(&headers, "H", "List of headers")
 	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
 	flag.Parse()
@@ -73,6 +75,7 @@ func main() {
 		Body:           body,
 		Headers:        headers,
 		AwsProfile:     awsProfile,
+		ShowPercentiles: showPercentiles,
 	})
 	if testerr != nil {
 		fmt.Println(testerr)
@@ -204,6 +207,22 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 
+	if len(data.Percentiles) > 0 {
+		headingStr = "Percentage of the requests served within a certain time"
+		renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
+		y++
+		headingStr = ""
+		resultStr = ""
+		for _, v := range queue.Percentiles {
+			headingStr += fmt.Sprintf("%9d%% ", v)
+			resultStr += fmt.Sprintf("  %7.3fs ", float64(data.Percentiles[v])/nano)
+		}
+		renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
+		y++
+		renderString(x, y, resultStr, coldef, coldef)
+		y++
+	}
+
 	return y
 }
 
@@ -252,6 +271,18 @@ func printData(data *queue.AggData) {
 	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
 	fmt.Printf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
 	fmt.Println("")
+
+	if len(data.Percentiles) > 0 {
+		headingStr := ""
+		resultStr := ""
+		for _, v := range queue.Percentiles {
+			headingStr += fmt.Sprintf("%9d%% ", v)
+			resultStr += fmt.Sprintf("  %7.3fs ", float64(data.Percentiles[v])/nano)
+		}
+		fmt.Println("Percentage of the requests served within a certain time")
+		boldPrintln(headingStr)
+		fmt.Println(resultStr)
+	}
 }
 
 func printSummary(result *queue.RegionsAggData) {
