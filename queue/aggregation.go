@@ -40,21 +40,23 @@ func (d *RegionsAggData) allRequestsReceived() bool {
 }
 
 func addResult(data *AggData, result *AggData, isFinalSum bool) {
-	initialDataTot := data.TotalReqs
-	initialDataTot64 := int64(data.TotalReqs)
+	initCountOk := int64(data.TotalReqs - data.TotalTimedOut - data.TotalConnectionError)
+	addCountOk  := int64(result.TotalReqs - result.TotalTimedOut - result.TotalConnectionError)
+	totalCountOk:= initCountOk + addCountOk
+
 	data.TotalReqs += result.TotalReqs
 	data.TotalTimedOut += result.TotalTimedOut
-	dataTot64 := int64(data.TotalReqs)
-	resultTot64 := int64(result.TotalReqs)
-	if dataTot64 > 0 {
-		data.AveTimeToFirst = (data.AveTimeToFirst*initialDataTot64 + result.AveTimeToFirst*resultTot64) / dataTot64
-		data.AveTimeForReq = (data.AveTimeForReq*initialDataTot64 + result.AveTimeForReq*resultTot64) / dataTot64
+	data.TotalConnectionError += result.TotalConnectionError
+
+	if totalCountOk > 0 {
+		data.AveTimeToFirst = (data.AveTimeToFirst * initCountOk + result.AveTimeToFirst * addCountOk) / totalCountOk
+		data.AveTimeForReq = (data.AveTimeForReq * initCountOk + result.AveTimeForReq * addCountOk) / totalCountOk
 		if isFinalSum {
 			data.AveReqPerSec = data.AveReqPerSec + result.AveReqPerSec
 			data.AveKBytesPerSec = data.AveKBytesPerSec + result.AveKBytesPerSec
 		} else {
-			data.AveReqPerSec = (data.AveReqPerSec*float32(initialDataTot) + result.AveReqPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
-			data.AveKBytesPerSec = (data.AveKBytesPerSec*float32(initialDataTot) + result.AveKBytesPerSec*float32(result.TotalReqs)) / float32(data.TotalReqs)
+			data.AveReqPerSec = (data.AveReqPerSec * float32(initCountOk) + result.AveReqPerSec * float32(addCountOk)) / float32(totalCountOk)
+			data.AveKBytesPerSec = (data.AveKBytesPerSec * float32(initCountOk) + result.AveKBytesPerSec * float32(addCountOk)) / float32(totalCountOk)
 		}
 	}
 	data.TotBytesRead += result.TotBytesRead
@@ -66,7 +68,7 @@ func addResult(data *AggData, result *AggData, isFinalSum bool) {
 	if result.Slowest > data.Slowest {
 		data.Slowest = result.Slowest
 	}
-	if data.Fastest == 0 || result.Fastest < data.Fastest {
+	if result.Fastest > 0 && (data.Fastest == 0 || result.Fastest < data.Fastest) {
 		data.Fastest = result.Fastest
 	}
 }

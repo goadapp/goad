@@ -121,7 +121,6 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 
 		resetStats := false
 		for requestsSoFar < totalRequests && !quitting && !resetStats {
-			aggregate := false
 			select {
 			case r := <-ch:
 				i++
@@ -165,55 +164,60 @@ func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests i
 					statuses[statusStr]++
 				}
 				requestTimeTotal += r.Elapsed
-				if requestsSoFar == totalRequests {
-					quitting = true
-				}
 			case <-ticker.C:
 				if i == 0 {
 					continue
 				}
-				aggregate = true
+				resetStats = true
 			case <-quit:
 				ticker.Stop()
 				quitting = true
 			}
-			if aggregate || quitting {
-				durationNanoSeconds := lastRequestTime - firstRequestTime
-				durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
-				var reqPerSec float32
-				var kbPerSec float32
-				if durationSeconds > 0 {
-					reqPerSec = float32(i) / durationSeconds
-					kbPerSec = (float32(totBytesRead) / durationSeconds) / 1024.0
-				} else {
-					reqPerSec = 0
-					kbPerSec = 0
-				}
-
-				fatalError := ""
-				if (totalTimedOut + totalConnectionError) > i/2 {
-					fatalError = "Over 50% of requests failed, aborting"
-					quitting = true
-				}
-				aggData := queue.AggData{
-					i,
-					totalTimedOut,
-					totalConnectionError,
-					timeToFirstTotal / int64(i),
-					totBytesRead,
-					statuses,
-					requestTimeTotal / int64(i),
-					reqPerSec,
-					kbPerSec,
-					slowest,
-					fastest,
-					awsregion,
-					fatalError,
-				}
-				sqsAdaptor.SendResult(aggData)
-				resetStats = true
-			}
 		}
+
+		countOk := i - (totalTimedOut + totalConnectionError)
+		durationNanoSeconds := lastRequestTime - firstRequestTime
+		durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
+		var reqPerSec float32
+		var kbPerSec float32
+		var avgTimeToFirst int64
+		var avgRequestTime int64
+
+		if durationSeconds > 0 {
+			reqPerSec = float32(countOk) / durationSeconds
+			kbPerSec = (float32(totBytesRead) / durationSeconds) / 1024.0
+		} else {
+			reqPerSec = 0
+			kbPerSec = 0
+		}
+		if countOk > 0 {
+			avgTimeToFirst = timeToFirstTotal / int64(countOk)
+			avgRequestTime = requestTimeTotal / int64(countOk)
+		} else {
+			avgTimeToFirst = 0
+			avgRequestTime = 0
+		}
+
+		fatalError := ""
+		if (totalTimedOut + totalConnectionError) > i/2 {
+			fatalError = "Over 50% of requests failed, aborting"
+		}
+		aggData := queue.AggData{
+			i,
+			totalTimedOut,
+			totalConnectionError,
+			avgTimeToFirst,
+			totBytesRead,
+			statuses,
+			avgRequestTime,
+			reqPerSec,
+			kbPerSec,
+			slowest,
+			fastest,
+			awsregion,
+			fatalError,
+		}
+		sqsAdaptor.SendResult(aggData)
 	}
 	fmt.Printf("\nYay🎈  - %d requests completed\n", requestsSoFar)
 
