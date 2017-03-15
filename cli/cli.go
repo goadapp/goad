@@ -98,6 +98,7 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 		panic(err)
 	}
 
+	defer test.Clean()
 	defer termbox.Close()
 	termbox.Sync()
 	renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)

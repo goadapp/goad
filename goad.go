@@ -54,6 +54,7 @@ var supportedRegions = []string{
 // Test type
 type Test struct {
 	config *TestConfig
+	infra  *infrastructure.Infrastructure
 }
 
 // NewTest returns a configured Test
@@ -62,7 +63,7 @@ func NewTest(config *TestConfig) (*Test, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Test{config}, nil
+	return &Test{config: config, infra: nil}, nil
 }
 
 // Start a test
@@ -82,6 +83,7 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 		log.Fatal(err)
 	}
 
+	t.infra = infra
 	t.invokeLambdas(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
@@ -90,7 +92,6 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.config.TotalRequests) {
 			results <- result
 		}
-		infra.Clean()
 		close(results)
 	}()
 
@@ -212,4 +213,10 @@ func (c TestConfig) check() error {
 		}
 	}
 	return nil
+}
+
+func (t *Test) Clean() {
+	if t.infra != nil {
+		t.infra.Clean();
+	}
 }
