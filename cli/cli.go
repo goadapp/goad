@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"os/signal"
 	"sort"
@@ -25,6 +26,7 @@ var (
 	url         string
 	concurrency uint
 	requests    uint
+	execTimeout uint
 	timeout     uint
 	regions     string
 	method      string
@@ -45,6 +47,7 @@ func main() {
 	flag.StringVar(&body, "b", "", "HTTP request body")
 	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
 	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
+	flag.UintVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
 	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
 	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
 	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
@@ -67,6 +70,7 @@ func main() {
 		URL:            url,
 		Concurrency:    concurrency,
 		TotalRequests:  requests,
+		ExecTimeout:    execTimeout,
 		RequestTimeout: time.Duration(timeout) * time.Second,
 		Regions:        strings.Split(regions, ","),
 		Method:         method,
@@ -120,6 +124,7 @@ func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.S
 		}
 	}()
 
+	startTime := time.Now()
 	firstTime := true
 outer:
 	for {
@@ -150,7 +155,12 @@ outer:
 			}
 
 			y = 0
-			percentDone := float64(totalReqs) / float64(result.TotalExpectedRequests)
+			var percentDone float64
+			if result.TotalExpectedRequests > 0 {
+				percentDone = float64(totalReqs) / float64(result.TotalExpectedRequests)
+			} else {
+				percentDone = math.Min(float64(time.Since(startTime).Seconds()) / float64(test.Config.ExecTimeout), 1.0)
+			}
 			drawProgressBar(percentDone, y)
 
 			termbox.Flush()

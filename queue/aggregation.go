@@ -21,6 +21,7 @@ type AggData struct {
 	Fastest              int64          `json:"fastest"`
 	Region               string         `json:"region"`
 	FatalError           string         `json:"fatal-error"`
+	Finished             bool           `json:"finished"`
 }
 
 // RegionsAggData type
@@ -31,12 +32,16 @@ type RegionsAggData struct {
 
 func (d *RegionsAggData) allRequestsReceived() bool {
 	var requests uint
+	var finishedCount int
 
 	for _, region := range d.Regions {
 		requests += uint(region.TotalReqs)
+		if region.Finished {
+			finishedCount += 1
+		}
 	}
 
-	return requests == d.TotalExpectedRequests
+	return requests == d.TotalExpectedRequests || finishedCount == len(d.Regions)
 }
 
 func addResult(data *AggData, result *AggData, isFinalSum bool) {
@@ -70,6 +75,9 @@ func addResult(data *AggData, result *AggData, isFinalSum bool) {
 	}
 	if result.Fastest > 0 && (data.Fastest == 0 || result.Fastest < data.Fastest) {
 		data.Fastest = result.Fastest
+	}
+	if result.Finished {
+		data.Finished = true
 	}
 }
 
