@@ -14,3 +14,8 @@ func (s *StringsliceFlag) Set(value string) error {
 	*s = append(*s, value)
 	return nil
 }
+
+// IsCumulative indicates to Kingpin that the flag is repeatable
+func (s *StringsliceFlag) IsCumulative() bool {
+	return true
+}
