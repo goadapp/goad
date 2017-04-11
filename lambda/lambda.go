@@ -19,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 	"github.com/goadapp/goad/helpers"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
@@ -34,18 +35,19 @@ func main() {
 
 func parseLambdaSettings() LambdaSettings {
 	var (
-		address          string
-		sqsurl           string
-		concurrencycount int
-		maxRequestCount  int
-		execTimeout      int
-		timeout          string
-		frequency        string
-		awsregion        string
-		queueRegion      string
-		requestMethod    string
-		requestBody      string
-		requestHeaders   helpers.StringsliceFlag
+		address                       string
+		sqsurl                        string
+		concurrencycount              int
+		maxRequestCount               int
+		execTimeout                   int
+		previousCompletedRequestCount int
+		timeout                       string
+		frequency                     string
+		awsregion                     string
+		queueRegion                   string
+		requestMethod                 string
+		requestBody                   string
+		requestHeaders                helpers.StringsliceFlag
 	)
 
 	flag.StringVar(&address, "u", "", "URL to load test (required)")
@@ -59,6 +61,7 @@ func parseLambdaSettings() LambdaSettings {
 
 	flag.IntVar(&concurrencycount, "c", 10, "number of concurrent requests")
 	flag.IntVar(&maxRequestCount, "n", 1000, "number of total requests to make")
+	flag.IntVar(&previousCompletedRequestCount, "p", 0, "number of previous requests already made by lambda")
 	flag.IntVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
 
 	flag.Var(&requestHeaders, "H", "List of headers")
@@ -79,15 +82,16 @@ func parseLambdaSettings() LambdaSettings {
 	}
 
 	lambdaSettings := LambdaSettings{
-		ClientTimeout:      clientTimeout,
-		SqsURL:             sqsurl,
-		AwsRegion:          awsregion,
-		RequestCount:       maxRequestCount,
-		ConcurrencyCount:   concurrencycount,
-		QueueRegion:        queueRegion,
-		ReportingFrequency: reportingFrequency,
-		RequestParameters:  requestParameters,
-		StresstestTimeout:  execTimeout,
+		ClientTimeout:         clientTimeout,
+		SqsURL:                sqsurl,
+		MaxRequestCount:       maxRequestCount,
+		CompletedRequestCount: previousCompletedRequestCount,
+		ConcurrencyCount:      concurrencycount,
+		QueueRegion:           queueRegion,
+		LambdaRegion:          awsregion,
+		ReportingFrequency:    reportingFrequency,
+		RequestParameters:     requestParameters,
+		StresstestTimeout:     execTimeout,
 	}
 	return lambdaSettings
 }
@@ -96,27 +100,28 @@ func parseLambdaSettings() LambdaSettings {
 type LambdaSettings struct {
 	LambdaExecTimeoutSeconds int
 	SqsURL                   string
-	RequestCount             int
+	MaxRequestCount          int
+	CompletedRequestCount    int
 	StresstestTimeout        int
 	ConcurrencyCount         int
 	QueueRegion              string
+	LambdaRegion             string
 	ReportingFrequency       time.Duration
 	ClientTimeout            time.Duration
 	RequestParameters        requestParameters
-	AwsRegion                string
 }
 
 // goadLambda holds the current state of the execution
 type goadLambda struct {
-	Settings     LambdaSettings
-	HTTPClient   *http.Client
-	Metrics      *requestMetric
-	AwsConfig    *aws.Config
-	resultSender resultSender
-	results      chan requestResult
-	jobs         chan struct{}
-	StartTime    time.Time
-	wg           sync.WaitGroup
+	Settings      LambdaSettings
+	HTTPClient    *http.Client
+	Metrics       *requestMetric
+	lambdaService lambdaiface.LambdaAPI
+	resultSender  resultSender
+	results       chan requestResult
+	jobs          chan struct{}
+	StartTime     time.Time
+	wg            sync.WaitGroup
 }
 
 type requestParameters struct {
@@ -149,36 +154,49 @@ func (l *goadLambda) runLoadTest() {
 	ticker := time.NewTicker(l.Settings.ReportingFrequency)
 	quit := time.NewTimer(time.Duration(l.Settings.LambdaExecTimeoutSeconds) * time.Second)
 	timedOut := false
+	finished := false
 
-	for (l.Metrics.aggregatedResults.TotalReqs < l.Settings.RequestCount) && !timedOut {
+	for !timedOut && !finished {
 		select {
 		case r := <-l.results:
+			l.Settings.CompletedRequestCount++
+
 			l.Metrics.addRequest(&r)
-			if l.Metrics.aggregatedResults.TotalReqs%1000 == 0 || l.Metrics.aggregatedResults.TotalReqs == l.Settings.RequestCount {
-				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(l.Metrics.aggregatedResults.TotalReqs)/float64(l.Settings.RequestCount))*100.0, l.Metrics.aggregatedResults.TotalReqs, l.Settings.RequestCount)
+			if l.Settings.CompletedRequestCount%1000 == 0 || l.Settings.CompletedRequestCount == l.Settings.MaxRequestCount {
+				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(l.Settings.CompletedRequestCount)/float64(l.Settings.MaxRequestCount))*100.0, l.Settings.CompletedRequestCount, l.Settings.MaxRequestCount)
 			}
 			continue
 
 		case <-ticker.C:
 			if l.Metrics.requestCountSinceLastSend > 0 {
 				l.Metrics.sendAggregatedResults(l.resultSender)
-				fmt.Printf("\nYay🎈  - %d requests completed\n", l.Metrics.aggregatedResults.TotalReqs)
+				fmt.Printf("\nYay🎈  - %d requests completed\n", l.Settings.CompletedRequestCount)
 			}
+			continue
+
+		case <-func() chan bool {
+			quit := make(chan bool)
+			go func() {
+				l.wg.Wait()
+				quit <- true
+			}()
+			return quit
+		}():
+			finished = true
 			continue
 
 		case <-quit.C:
 			ticker.Stop()
 			timedOut = true
+			finished = l.updateStresstestTimeout()
 		}
 	}
-	if timedOut {
-		fmt.Printf("-----------------timeout---------------------\n")
+	if timedOut && !finished {
 		l.forkNewLambda()
-	} else {
-		l.Metrics.aggregatedResults.Finished = true
 	}
+	l.Metrics.aggregatedResults.Finished = finished
 	l.Metrics.sendAggregatedResults(l.resultSender)
-	fmt.Printf("\nYay🎈  - %d requests completed\n", l.Metrics.aggregatedResults.TotalReqs)
+	fmt.Printf("\nYay🎈  - %d requests completed\n", l.Settings.CompletedRequestCount)
 }
 
 // NewLambda creates a new Lambda to execute a load test from a given
@@ -191,11 +209,12 @@ func NewLambda(s LambdaSettings) *goadLambda {
 	l.Settings = s
 
 	l.Metrics = NewRequestMetric()
+	remainingRequestCount := s.MaxRequestCount - s.CompletedRequestCount
 	l.setupHTTPClientForSelfsignedTLS()
-	l.AwsConfig = l.setupAwsConfig()
-	l.setupAwsSqsAdapter(l.AwsConfig)
-	l.setupJobQueue()
-	l.results = make(chan requestResult, l.Settings.RequestCount)
+	awsSqsConfig := l.setupAwsConfig()
+	l.setupAwsSqsAdapter(awsSqsConfig)
+	l.setupJobQueue(remainingRequestCount)
+	l.results = make(chan requestResult, remainingRequestCount)
 	return l
 }
 
@@ -227,20 +246,20 @@ func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
 	l.resultSender = queue.NewSQSAdaptor(config, l.Settings.SqsURL)
 }
 
-func (l *goadLambda) setupJobQueue() {
-	l.jobs = make(chan struct{}, l.Settings.RequestCount)
-	for i := 0; i < l.Settings.RequestCount; i++ {
+func (l *goadLambda) setupJobQueue(count int) {
+	l.jobs = make(chan struct{}, count)
+	for i := 0; i < count; i++ {
 		l.jobs <- struct{}{}
 	}
 	close(l.jobs)
 }
 
-func (l *goadLambda) updateStresstestTimeout() {
-	l.Settings.StresstestTimeout -= l.Settings.LambdaExecTimeoutSeconds
-}
-
-func (l *goadLambda) updateRemainingRequests() {
-	l.Settings.RequestCount -= l.Metrics.aggregatedResults.TotalReqs
+func (l *goadLambda) updateStresstestTimeout() bool {
+	if l.Settings.StresstestTimeout != 0 {
+		l.Settings.StresstestTimeout -= l.Settings.LambdaExecTimeoutSeconds
+		return l.Settings.StresstestTimeout <= 0
+	}
+	return false
 }
 
 func (l *goadLambda) spawnConcurrentWorkers() {
@@ -370,12 +389,11 @@ func prepareHttpRequest(params requestParameters) *http.Request {
 }
 
 type requestMetric struct {
-	aggregatedResults         queue.AggData
+	aggregatedResults         *queue.AggData
 	firstRequestTime          int64
 	lastRequestTime           int64
 	timeToFirstTotal          int64
 	requestTimeTotal          int64
-	totalBytesRead            int64
 	requestCountSinceLastSend int64
 }
 
@@ -384,13 +402,16 @@ type resultSender interface {
 }
 
 func NewRequestMetric() *requestMetric {
-	metric := &requestMetric{}
+	metric := &requestMetric{
+		aggregatedResults: &queue.AggData{},
+	}
 	metric.resetAndKeepTotalReqs()
 	return metric
 }
 
 func (m *requestMetric) addRequest(r *requestResult) {
-	m.aggregatedResults.TotalReqs++
+	agg := m.aggregatedResults
+	agg.TotalReqs++
 	m.requestCountSinceLastSend++
 	if m.firstRequestTime == 0 {
 		m.firstRequestTime = r.Time
@@ -398,44 +419,49 @@ func (m *requestMetric) addRequest(r *requestResult) {
 	m.lastRequestTime = r.Time + r.Elapsed
 
 	if r.Timeout {
-		m.aggregatedResults.TotalTimedOut++
+		agg.TotalTimedOut++
 	} else if r.ConnectionError {
-		m.aggregatedResults.TotalConnectionError++
+		agg.TotalConnectionError++
 	} else {
-		m.totalBytesRead += int64(r.Bytes)
+		agg.TotBytesRead += r.Bytes
 		m.requestTimeTotal += r.ElapsedLastByte
 		m.timeToFirstTotal += r.ElapsedFirstByte
+
+		agg.Fastest = Min(r.ElapsedLastByte, agg.Fastest)
+		agg.Slowest = Max(r.ElapsedLastByte, agg.Slowest)
+
 		statusStr := strconv.Itoa(r.Status)
-		_, ok := m.aggregatedResults.Statuses[statusStr]
+		_, ok := agg.Statuses[statusStr]
 		if !ok {
-			m.aggregatedResults.Statuses[statusStr] = 1
+			agg.Statuses[statusStr] = 1
 		} else {
-			m.aggregatedResults.Statuses[statusStr]++
+			agg.Statuses[statusStr]++
 		}
 	}
 	m.aggregate()
 }
 
 func (m *requestMetric) aggregate() {
-	countOk := int(m.requestCountSinceLastSend) - (m.aggregatedResults.TotalTimedOut + m.aggregatedResults.TotalConnectionError)
+	agg := m.aggregatedResults
+	countOk := int(m.requestCountSinceLastSend) - (agg.TotalTimedOut + agg.TotalConnectionError)
 	timeDelta := time.Duration(m.lastRequestTime-m.firstRequestTime) * time.Nanosecond
 	timeDeltaInSeconds := float32(timeDelta.Seconds())
 	if timeDeltaInSeconds > 0 {
-		m.aggregatedResults.AveKBytesPerSec = float32(m.totalBytesRead) / timeDeltaInSeconds
-		m.aggregatedResults.AveReqPerSec = float32(countOk) / timeDeltaInSeconds
+		agg.AveKBytesPerSec = float32(agg.TotBytesRead) / timeDeltaInSeconds
+		agg.AveReqPerSec = float32(countOk) / timeDeltaInSeconds
 	}
 	if countOk > 0 {
-		m.aggregatedResults.AveTimeToFirst = m.timeToFirstTotal / int64(countOk)
-		m.aggregatedResults.AveTimeForReq = m.requestTimeTotal / int64(countOk)
+		agg.AveTimeToFirst = m.timeToFirstTotal / int64(countOk)
+		agg.AveTimeForReq = m.requestTimeTotal / int64(countOk)
 	}
-	m.aggregatedResults.FatalError = ""
-	if (m.aggregatedResults.TotalTimedOut + m.aggregatedResults.TotalConnectionError) > int(m.requestCountSinceLastSend)/2 {
-		m.aggregatedResults.FatalError = "Over 50% of requests failed, aborting"
+	agg.FatalError = ""
+	if (agg.TotalTimedOut + agg.TotalConnectionError) > int(m.requestCountSinceLastSend)/2 {
+		agg.FatalError = "Over 50% of requests failed, aborting"
 	}
 }
 
 func (m *requestMetric) sendAggregatedResults(sender resultSender) {
-	sender.SendResult(m.aggregatedResults)
+	sender.SendResult(*m.aggregatedResults)
 	m.resetAndKeepTotalReqs()
 }
 
@@ -445,28 +471,32 @@ func (m *requestMetric) resetAndKeepTotalReqs() {
 	m.lastRequestTime = 0
 	m.requestTimeTotal = 0
 	m.timeToFirstTotal = 0
-	m.totalBytesRead = 0
-	saveTotalReqs := m.aggregatedResults.TotalReqs
-	m.aggregatedResults = queue.AggData{
-		Statuses:  make(map[string]int),
-		Fastest:   math.MaxInt64,
-		TotalReqs: saveTotalReqs,
-		Finished:  false,
+	m.aggregatedResults = &queue.AggData{
+		Statuses: make(map[string]int),
+		Fastest:  math.MaxInt64,
+		Finished: false,
 	}
 }
 
 func (l *goadLambda) forkNewLambda() {
-	l.updateStresstestTimeout()
-	l.updateRemainingRequests()
-	svc := lambda.New(session.New(), l.AwsConfig)
+	svc := l.provideLambdaService()
 	args := l.getInvokeArgsForFork()
 
 	j, _ := json.Marshal(args)
 
-	svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	output, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
 		FunctionName: aws.String("goad:" + version.LambdaVersion()),
 		InvokeArgs:   bytes.NewReader(j),
 	})
+	fmt.Println(output)
+	fmt.Println(err)
+}
+
+func (l *goadLambda) provideLambdaService() lambdaiface.LambdaAPI {
+	if l.lambdaService == nil {
+		l.lambdaService = lambda.New(session.New(), aws.NewConfig().WithRegion(l.Settings.LambdaRegion))
+	}
+	return l.lambdaService
 }
 
 func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
@@ -479,19 +509,21 @@ func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
 		"-c",
 		fmt.Sprintf("%s", strconv.Itoa(settings.ConcurrencyCount)),
 		"-n",
-		fmt.Sprintf("%s", strconv.Itoa(settings.RequestCount)),
+		fmt.Sprintf("%s", strconv.Itoa(settings.MaxRequestCount)),
+		"-p",
+		fmt.Sprintf("%s", strconv.Itoa(l.Settings.CompletedRequestCount)),
 		"-N",
 		fmt.Sprintf("%s", strconv.Itoa(settings.StresstestTimeout)),
 		"-s",
 		fmt.Sprintf("%s", settings.SqsURL),
 		"-q",
-		fmt.Sprintf("%s", settings.AwsRegion),
+		fmt.Sprintf("%s", settings.QueueRegion),
 		"-t",
 		fmt.Sprintf("%s", settings.ClientTimeout.String()),
 		"-f",
 		fmt.Sprintf("%s", settings.ReportingFrequency.String()),
 		"-r",
-		fmt.Sprintf("%s", settings.AwsRegion),
+		fmt.Sprintf("%s", settings.LambdaRegion),
 		"-m",
 		fmt.Sprintf("%s", params.RequestMethod),
 		"-b",

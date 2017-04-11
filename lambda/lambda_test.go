@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"math"
@@ -13,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 	"github.com/goadapp/goad/queue"
 )
 
@@ -30,16 +34,17 @@ func TestMain(m *testing.M) {
 
 func TestRequestMetric(t *testing.T) {
 	metric := NewRequestMetric()
-	if metric.aggregatedResults.TotalReqs != 0 {
+	agg := metric.aggregatedResults
+	if agg.TotalReqs != 0 {
 		t.Error("totalRequestsFinished should be initialized with 0")
 	}
 	if metric.requestCountSinceLastSend != 0 {
 		t.Error("totalRequestsFinished should be initialized with 0")
 	}
-	if metric.aggregatedResults.Fastest != math.MaxInt64 {
+	if agg.Fastest != math.MaxInt64 {
 		t.Error("Fastest should be initialized with a big value")
 	}
-	if metric.aggregatedResults.Slowest != 0 {
+	if agg.Slowest != 0 {
 		t.Error("Slowest should be initialized with a big value")
 	}
 	if metric.firstRequestTime != 0 {
@@ -54,7 +59,7 @@ func TestRequestMetric(t *testing.T) {
 	if metric.requestTimeTotal != 0 {
 		t.Error("without requests this field should be 0")
 	}
-	if metric.totalBytesRead != 0 {
+	if agg.TotBytesRead != 0 {
 		t.Error("without requests this field should be 0")
 	}
 }
@@ -101,18 +106,20 @@ func TestAddRequest(t *testing.T) {
 	if metric.requestCountSinceLastSend != 1 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
+	result.ElapsedLastByte = 400
 	result.Time = 800
 	metric.addRequest(result)
-	if metric.aggregatedResults.TotalReqs != 2 {
+	agg := metric.aggregatedResults
+	if agg.TotalReqs != 2 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 2 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if metric.totalBytesRead != int64(2*bytes) {
+	if agg.TotBytesRead != 2*bytes {
 		t.Error("metrics should add successful requests Bytes to totalBytesRead")
 	}
-	if metric.requestTimeTotal != 2*elapsedLast {
+	if metric.requestTimeTotal != 700 {
 		t.Error("metrics should add successful requests elapsedLast to requestTimeTotal")
 	}
 	if metric.timeToFirstTotal != 2*elapsedFirst {
@@ -124,18 +131,24 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != 800+100 {
 		t.Error("metrics should update lastRequestsTime")
 	}
+	if agg.Fastest != 300 {
+		t.Errorf("Expected fastes requests to have taken 300, was: %d", agg.Fastest)
+	}
+	if agg.Slowest != 400 {
+		t.Errorf("Expected fastes requests to have taken 300, was: %d", agg.Fastest)
+	}
 	result.Timeout = true
 	metric.addRequest(result)
-	if metric.aggregatedResults.TotalReqs != 3 {
+	if agg.TotalReqs != 3 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 3 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if metric.totalBytesRead != int64(2*bytes) {
+	if agg.TotBytesRead != 2*bytes {
 		t.Error("metrics should not add timedout requests Bytes to totalBytesRead")
 	}
-	if metric.requestTimeTotal != 2*elapsedLast {
+	if metric.requestTimeTotal != 700 {
 		t.Error("metrics should not add timedout requests elapsedLast to requestTimeTotal")
 	}
 	if metric.timeToFirstTotal != 2*elapsedFirst {
@@ -147,22 +160,22 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != 800+100 {
 		t.Error("metrics should update lastRequestsTime")
 	}
-	if metric.aggregatedResults.TotalTimedOut != 1 {
+	if agg.TotalTimedOut != 1 {
 		t.Error("metrics should update TotalTimeOut")
 	}
 	result.ConnectionError = true
 	result.Timeout = false
 	metric.addRequest(result)
-	if metric.aggregatedResults.TotalReqs != 4 {
+	if agg.TotalReqs != 4 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 4 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if metric.totalBytesRead != int64(2*bytes) {
+	if agg.TotBytesRead != 2*bytes {
 		t.Error("metrics should not add timedout requests Bytes to totalBytesRead")
 	}
-	if metric.requestTimeTotal != 2*elapsedLast {
+	if metric.requestTimeTotal != 700 {
 		t.Error("metrics should not add timedout requests elapsedLast to requestTimeTotal")
 	}
 	if metric.timeToFirstTotal != 2*elapsedFirst {
@@ -174,32 +187,34 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != 800+100 {
 		t.Error("metrics should update lastRequestsTime")
 	}
-	if metric.aggregatedResults.TotalConnectionError != 1 {
+	if agg.TotalConnectionError != 1 {
 		t.Error("metrics should update TotalConnectionError")
 	}
 }
 
 func TestResetAndKeepTotalReqs(t *testing.T) {
 	metric := NewRequestMetric()
-	metric.aggregatedResults.TotalReqs = 7
+	agg := metric.aggregatedResults
+	agg.TotalReqs = 7
 	metric.firstRequestTime = 123
 	metric.lastRequestTime = 123
 	metric.requestCountSinceLastSend = 123
 	metric.requestTimeTotal = 123
 	metric.timeToFirstTotal = 123
-	metric.totalBytesRead = 123
+	agg.TotBytesRead = 123
 
 	metric.resetAndKeepTotalReqs()
-	if metric.aggregatedResults.TotalReqs != 7 {
-		t.Error("totalRequestsFinished should not be reset")
+	agg = metric.aggregatedResults
+	if agg.TotalReqs != 0 {
+		t.Error("TotalReqs should be reset to 0")
 	}
 	if metric.requestCountSinceLastSend != 0 {
 		t.Error("totalRequestsFinished should be reset to 0")
 	}
-	if metric.aggregatedResults.Fastest != math.MaxInt64 {
+	if agg.Fastest != math.MaxInt64 {
 		t.Error("Fastest should be re-initialized with a big value")
 	}
-	if metric.aggregatedResults.Slowest != 0 {
+	if agg.Slowest != 0 {
 		t.Error("Slowest should be re-initialized with a big value")
 	}
 	if metric.firstRequestTime != 0 {
@@ -217,7 +232,7 @@ func TestResetAndKeepTotalReqs(t *testing.T) {
 	if metric.timeToFirstTotal != 0 {
 		t.Error("timeToFirstTotal should be reset")
 	}
-	if metric.totalBytesRead != 0 {
+	if agg.TotBytesRead != 0 {
 		t.Error("totalBytesRead should be reset")
 	}
 }
@@ -238,18 +253,18 @@ func TestMetricsAggregate(t *testing.T) {
 		ConnectionError:  false,
 	}
 	metric.aggregate()
-	agg := &metric.aggregatedResults
+	agg := metric.aggregatedResults
 	if agg.AveKBytesPerSec != 0 {
-		t.Errorf("should result in 0", agg.AveKBytesPerSec)
+		t.Errorf("should result in 0, but was: %f", agg.AveKBytesPerSec)
 	}
 	if agg.AveReqPerSec != 0 {
-		t.Errorf("should result in 0", agg.AveReqPerSec)
+		t.Errorf("should result in 0, but was: %f", agg.AveReqPerSec)
 	}
 	if agg.AveTimeToFirst != 0 {
-		t.Errorf("should result in 0", agg.AveTimeToFirst)
+		t.Errorf("should result in 0, but was: %d", agg.AveTimeToFirst)
 	}
 	if agg.AveTimeForReq != 0 {
-		t.Errorf("should result in 0", agg.AveTimeForReq)
+		t.Errorf("should result in 0, but was: %d", agg.AveTimeForReq)
 	}
 	for i := 0; i < 10; i++ {
 		result.Time += 10000000
@@ -293,10 +308,24 @@ func (s *TestResultSender) SendResult(data queue.AggData) {
 	s.sentResults = append(s.sentResults, data)
 }
 
+type mockLambdaClient struct {
+	lambdaiface.LambdaAPI
+	input *invokeArgs
+}
+
+func (m *mockLambdaClient) InvokeAsync(in *lambda.InvokeAsyncInput) (*lambda.InvokeAsyncOutput, error) {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(in.InvokeArgs)
+	args := &invokeArgs{}
+	json.Unmarshal(buf.Bytes(), args)
+	m.input = args
+	return &lambda.InvokeAsyncOutput{}, nil
+}
+
 func TestQuitOnLambdaTimeout(t *testing.T) {
-	// if testing.Short() {
-	// 	t.Skip("skipping test in short mode.")
-	// }
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
 	handler := &delayRequstHandler{
 		DelayMilliseconds: 400,
 	}
@@ -308,16 +337,19 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 
 	reportingFrequency := time.Duration(5) * time.Second
 	settings := LambdaSettings{
-		RequestCount:             3,
+		MaxRequestCount:          3,
 		ConcurrencyCount:         1,
 		ReportingFrequency:       reportingFrequency,
 		StresstestTimeout:        10,
 		LambdaExecTimeoutSeconds: 1,
+		LambdaRegion:             "us-east-1",
 	}
 	settings.RequestParameters.URL = urlStr
 	sender := &TestResultSender{}
 	lambda := NewLambda(settings)
 	lambda.resultSender = sender
+	mockClient := &mockLambdaClient{}
+	lambda.lambdaService = mockClient
 	function := &lambdaTestFunction{
 		lambda: lambda,
 	}
@@ -327,9 +359,9 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 	if timeoutRemaining != 9 {
 		t.Errorf("we shoud have 9 seconds of stresstest left, actual: %d", timeoutRemaining)
 	}
-	requestsRemaining := lambda.Settings.RequestCount
-	if requestsRemaining != 1 {
-		t.Errorf("we shoud have one request left, actual: %d", requestsRemaining)
+	requestCount := lambda.Settings.MaxRequestCount
+	if requestCount != 3 {
+		t.Errorf("the request count of 3 should not have changed, actual: %d", requestCount)
 	}
 	if resLength != 1 {
 		t.Errorf("We should have received exactly 1 result but got %d instead.", resLength)
@@ -379,7 +411,7 @@ func TestRunLoadTestWithOneRequest(t *testing.T) {
 	server := createAndStartTestServer()
 	defer server.Stop()
 
-	runLoadTestWith(t, 1, 1, 50)
+	runLoadTestWith(t, 1, -1, 50)
 }
 
 func TestRunLoadTestWithZeroRequests(t *testing.T) {
@@ -395,7 +427,7 @@ func runLoadTestWith(t *testing.T, requestCount int, concurrency int, millisecon
 	}
 	reportingFrequency := time.Duration(5) * time.Second
 	settings := LambdaSettings{
-		RequestCount:       requestCount,
+		MaxRequestCount:    requestCount,
 		ConcurrencyCount:   concurrency,
 		ReportingFrequency: reportingFrequency,
 	}
@@ -512,7 +544,6 @@ func (s *testServer) Start() {
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
 		panic(err)
-		return
 	}
 	s.Listener = listener
 	s.HTTPServer = http.Server{
