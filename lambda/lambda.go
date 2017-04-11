@@ -208,13 +208,16 @@ func NewLambda(s LambdaSettings) *goadLambda {
 	l := &goadLambda{}
 	l.Settings = s
 
-	l.Metrics = NewRequestMetric()
+	l.Metrics = NewRequestMetric(s.LambdaRegion)
 	remainingRequestCount := s.MaxRequestCount - s.CompletedRequestCount
+	if remainingRequestCount < 0 {
+		remainingRequestCount = 0
+	}
 	l.setupHTTPClientForSelfsignedTLS()
 	awsSqsConfig := l.setupAwsConfig()
 	l.setupAwsSqsAdapter(awsSqsConfig)
 	l.setupJobQueue(remainingRequestCount)
-	l.results = make(chan requestResult, remainingRequestCount)
+	l.results = make(chan requestResult)
 	return l
 }
 
@@ -225,8 +228,10 @@ func setDefaultConcurrencyCount(s *LambdaSettings) {
 }
 
 func setLambdaExecTimeout(s *LambdaSettings) {
-	if s.LambdaExecTimeoutSeconds <= 0 || s.LambdaExecTimeoutSeconds > AWS_MAX_TIMEOUT {
+	if s.StresstestTimeout <= 0 || s.StresstestTimeout > AWS_MAX_TIMEOUT {
 		s.LambdaExecTimeoutSeconds = AWS_MAX_TIMEOUT
+	} else {
+		s.LambdaExecTimeoutSeconds = s.StresstestTimeout
 	}
 }
 
@@ -281,9 +286,11 @@ func (l *goadLambda) spawnWorker() {
 
 func work(l *goadLambda) {
 	for {
-		_, ok := <-l.jobs
-		if !ok {
-			break
+		if l.Settings.MaxRequestCount > 0 {
+			_, ok := <-l.jobs
+			if !ok {
+				break
+			}
 		}
 		l.results <- fetch(l.HTTPClient, l.Settings.RequestParameters, l.StartTime)
 	}
@@ -401,9 +408,9 @@ type resultSender interface {
 	SendResult(queue.AggData)
 }
 
-func NewRequestMetric() *requestMetric {
+func NewRequestMetric(region string) *requestMetric {
 	metric := &requestMetric{
-		aggregatedResults: &queue.AggData{},
+		aggregatedResults: &queue.AggData{Region: region},
 	}
 	metric.resetAndKeepTotalReqs()
 	return metric
@@ -472,6 +479,7 @@ func (m *requestMetric) resetAndKeepTotalReqs() {
 	m.requestTimeTotal = 0
 	m.timeToFirstTotal = 0
 	m.aggregatedResults = &queue.AggData{
+		Region:   m.aggregatedResults.Region,
 		Statuses: make(map[string]int),
 		Fastest:  math.MaxInt64,
 		Finished: false,

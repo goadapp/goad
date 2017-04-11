@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestRequestMetric(t *testing.T) {
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	agg := metric.aggregatedResults
 	if agg.TotalReqs != 0 {
 		t.Error("totalRequestsFinished should be initialized with 0")
@@ -67,7 +67,7 @@ func TestRequestMetric(t *testing.T) {
 func TestAddRequestStatus(t *testing.T) {
 	success := 200
 	successStr := strconv.Itoa(success)
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	result := &requestResult{
 		Status: success,
 	}
@@ -86,7 +86,7 @@ func TestAddRequest(t *testing.T) {
 	elapsedFirst := int64(100)
 	elapsedLast := int64(300)
 
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	result := &requestResult{
 		Time:             400,
 		ElapsedFirstByte: elapsedFirst,
@@ -193,7 +193,7 @@ func TestAddRequest(t *testing.T) {
 }
 
 func TestResetAndKeepTotalReqs(t *testing.T) {
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	agg := metric.aggregatedResults
 	agg.TotalReqs = 7
 	metric.firstRequestTime = 123
@@ -242,7 +242,7 @@ func TestMetricsAggregate(t *testing.T) {
 	elapsedFirst := int64(100)
 	elapsedLast := int64(300)
 
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	result := &requestResult{
 		Time:             10000000,
 		Elapsed:          10000000,
@@ -337,12 +337,11 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 
 	reportingFrequency := time.Duration(5) * time.Second
 	settings := LambdaSettings{
-		MaxRequestCount:          3,
-		ConcurrencyCount:         1,
-		ReportingFrequency:       reportingFrequency,
-		StresstestTimeout:        10,
-		LambdaExecTimeoutSeconds: 1,
-		LambdaRegion:             "us-east-1",
+		MaxRequestCount:    3,
+		ConcurrencyCount:   1,
+		ReportingFrequency: reportingFrequency,
+		StresstestTimeout:  10,
+		LambdaRegion:       "us-east-1",
 	}
 	settings.RequestParameters.URL = urlStr
 	sender := &TestResultSender{}
@@ -353,6 +352,7 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 	function := &lambdaTestFunction{
 		lambda: lambda,
 	}
+	lambda.Settings.LambdaExecTimeoutSeconds = 1
 	RunOrFailAfterTimout(t, function, 1400)
 	resLength := len(sender.sentResults)
 	timeoutRemaining := lambda.Settings.StresstestTimeout
@@ -389,7 +389,7 @@ func TestMetricSendResults(t *testing.T) {
 		ConnectionError:  false,
 	}
 
-	metric := NewRequestMetric()
+	metric := NewRequestMetric("us-east-1")
 	sender := &TestResultSender{}
 
 	metric.addRequest(result)
@@ -404,24 +404,35 @@ func TestRunLoadTestWithHighConcurrency(t *testing.T) {
 	server := createAndStartTestServer()
 	defer server.Stop()
 
-	runLoadTestWith(t, 500, 100, 500)
+	runLoadTestWithDefaultExecTimeout(t, 500, 100, 500)
 }
 
 func TestRunLoadTestWithOneRequest(t *testing.T) {
 	server := createAndStartTestServer()
 	defer server.Stop()
 
-	runLoadTestWith(t, 1, -1, 50)
+	runLoadTestWithDefaultExecTimeout(t, 1, -1, 50)
 }
 
 func TestRunLoadTestWithZeroRequests(t *testing.T) {
 	server := createAndStartTestServer()
 	defer server.Stop()
 
-	runLoadTestWith(t, 0, 1, 50)
+	runLoadTestWithDefaultExecTimeout(t, 1, 1, 120)
 }
 
-func runLoadTestWith(t *testing.T, requestCount int, concurrency int, milliseconds int) {
+func TestRunWithExecTimeout(t *testing.T) {
+	server := createAndStartTestServer()
+	defer server.Stop()
+
+	runLoadTestWith(t, 0, 1, 1, 1050)
+}
+
+func runLoadTestWithDefaultExecTimeout(t *testing.T, requestCount int, concurrency int, milliseconds int) {
+	runLoadTestWith(t, requestCount, 0, concurrency, milliseconds)
+}
+
+func runLoadTestWith(t *testing.T, requestCount int, stresstestTimeout int, concurrency int, milliseconds int) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode.")
 	}
@@ -430,6 +441,7 @@ func runLoadTestWith(t *testing.T, requestCount int, concurrency int, millisecon
 		MaxRequestCount:    requestCount,
 		ConcurrencyCount:   concurrency,
 		ReportingFrequency: reportingFrequency,
+		StresstestTimeout:  stresstestTimeout,
 	}
 	settings.RequestParameters.URL = urlStr
 	sender := &TestResultSender{}
@@ -447,7 +459,7 @@ func runLoadTestWith(t *testing.T, requestCount int, concurrency int, millisecon
 	if results.Finished != true {
 		t.Error("the lambda should have finished it's results")
 	}
-	if results.TotalReqs != requestCount {
+	if results.TotalReqs != requestCount && requestCount > 0 {
 		t.Errorf("the lambda generated results for %d request, expected %d", results.TotalReqs, requestCount)
 	}
 }
