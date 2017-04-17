@@ -28,16 +28,16 @@ type AggData struct {
 // RegionsAggData type
 type RegionsAggData struct {
 	Regions               map[string]AggData
-	TotalExpectedRequests uint
+	TotalExpectedRequests int
 	lambdasByRegion       int
 }
 
 func (d *RegionsAggData) allRequestsReceived() bool {
-	var requests uint
+	var requests int
 	var finishedRegions int
 
 	for _, region := range d.Regions {
-		requests += uint(region.TotalReqs)
+		requests += region.TotalReqs
 		if region.FinishedLambdas == d.lambdasByRegion {
 			finishedRegions += 1
 		}
@@ -48,22 +48,22 @@ func (d *RegionsAggData) allRequestsReceived() bool {
 
 func addResult(data *AggData, result *AggData, isFinalSum bool) {
 	initCountOk := int64(data.TotalReqs - data.TotalTimedOut - data.TotalConnectionError)
-	addCountOk  := int64(result.TotalReqs - result.TotalTimedOut - result.TotalConnectionError)
-	totalCountOk:= initCountOk + addCountOk
+	addCountOk := int64(result.TotalReqs - result.TotalTimedOut - result.TotalConnectionError)
+	totalCountOk := initCountOk + addCountOk
 
 	data.TotalReqs += result.TotalReqs
 	data.TotalTimedOut += result.TotalTimedOut
 	data.TotalConnectionError += result.TotalConnectionError
 
 	if totalCountOk > 0 {
-		data.AveTimeToFirst = (data.AveTimeToFirst * initCountOk + result.AveTimeToFirst * addCountOk) / totalCountOk
-		data.AveTimeForReq = (data.AveTimeForReq * initCountOk + result.AveTimeForReq * addCountOk) / totalCountOk
+		data.AveTimeToFirst = (data.AveTimeToFirst*initCountOk + result.AveTimeToFirst*addCountOk) / totalCountOk
+		data.AveTimeForReq = (data.AveTimeForReq*initCountOk + result.AveTimeForReq*addCountOk) / totalCountOk
 		if isFinalSum {
 			data.AveReqPerSec = data.AveReqPerSec + result.AveReqPerSec
 			data.AveKBytesPerSec = data.AveKBytesPerSec + result.AveKBytesPerSec
 		} else {
-			data.AveReqPerSec = (data.AveReqPerSec * float32(initCountOk) + result.AveReqPerSec * float32(addCountOk)) / float32(totalCountOk)
-			data.AveKBytesPerSec = (data.AveKBytesPerSec * float32(initCountOk) + result.AveKBytesPerSec * float32(addCountOk)) / float32(totalCountOk)
+			data.AveReqPerSec = (data.AveReqPerSec*float32(initCountOk) + result.AveReqPerSec*float32(addCountOk)) / float32(totalCountOk)
+			data.AveKBytesPerSec = (data.AveKBytesPerSec*float32(initCountOk) + result.AveKBytesPerSec*float32(addCountOk)) / float32(totalCountOk)
 		}
 	}
 	data.TotBytesRead += result.TotBytesRead
@@ -94,13 +94,13 @@ func SumRegionResults(regionData *RegionsAggData) *AggData {
 }
 
 // Aggregate listens for results and sends totals, closing the channel when done
-func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uint, lambdasByRegion int) chan RegionsAggData {
+func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) chan RegionsAggData {
 	results := make(chan RegionsAggData)
 	go aggregate(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
 	return results
 }
 
-func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint, lambdasByRegion int) {
+func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
 	defer close(results)
 	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
 
