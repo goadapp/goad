@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/goadapp/goad"
 	"github.com/goadapp/goad/queue"
@@ -80,12 +79,12 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 
 	config := goad.TestConfig{
-		URL:            url,
-		Concurrency:    5,
-		TotalRequests:  1000,
-		RequestTimeout: time.Duration(5 * time.Second),
-		Regions:        []string{"us-east-1", "eu-west-1"},
-		Method:         "GET",
+		URL:         url,
+		Concurrency: 5,
+		Requests:    1000,
+		Timeout:     5,
+		Regions:     []string{"us-east-1", "eu-west-1"},
+		Method:      "GET",
 	}
 
 	test, testerr := goad.NewTest(&config)

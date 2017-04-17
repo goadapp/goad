@@ -1,0 +1,11 @@
+url = "http://file-config.com/"
+method = "GET"
+body = "Hello world"
+timeout = 9
+concurrency = 7
+requests = 107
+timelimit = 13
+regions = ["eu-west-1", "us-east-1"]
+awsprofile = "my-aws-profile"
+output = "test-result.json"
+headers = ["cache-control: no-cache", "auth-token: YOUR-SECRET-AUTH-TOKEN"]

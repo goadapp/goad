@@ -22,16 +22,18 @@ import (
 
 // TestConfig type
 type TestConfig struct {
-	URL            string
-	Concurrency    uint
-	TotalRequests  uint
-	ExecTimeout    uint
-	RequestTimeout time.Duration
-	Regions        []string
-	Method         string
-	Body           string
-	Headers        []string
-	AwsProfile     string
+	URL         string
+	Concurrency int
+	Requests    int
+	Timelimit   int
+	Timeout     int
+	Regions     []string
+	Method      string
+	Body        string
+	Headers     []string
+	AwsProfile  string
+	Output      string
+	Settings    string
 }
 
 type invokeArgs struct {
@@ -54,8 +56,8 @@ var supportedRegions = []string{
 
 // Test type
 type Test struct {
-	Config *TestConfig
-	infra  *infrastructure.Infrastructure
+	Config  *TestConfig
+	infra   *infrastructure.Infrastructure
 	lambdas int
 }
 
@@ -92,7 +94,7 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 	results := make(chan queue.RegionsAggData)
 
 	go func() {
-		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.TotalRequests, t.lambdas) {
+		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.Requests, t.lambdas) {
 			results <- result
 		}
 		close(results)
@@ -104,9 +106,9 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 	for i := 0; i < t.lambdas; i++ {
 		region := t.Config.Regions[i%len(t.Config.Regions)]
-		requests, requestsRemainder := divide(t.Config.TotalRequests, t.lambdas)
+		requests, requestsRemainder := divide(t.Config.Requests, t.lambdas)
 		concurrency, _ := divide(t.Config.Concurrency, t.lambdas)
-		execTimeout := t.Config.ExecTimeout
+		execTimeout := t.Config.Timelimit
 
 		if requestsRemainder > 0 && i == t.lambdas-1 {
 			requests += requestsRemainder
@@ -127,7 +129,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			"-q",
 			fmt.Sprintf("%s", c.Regions[0]),
 			"-t",
-			fmt.Sprintf("%s", c.RequestTimeout.String()),
+			fmt.Sprintf("%s", time.Duration(c.Timeout)*time.Second),
 			"-f",
 			fmt.Sprintf("%s", reportingFrequency(t.lambdas).String()),
 			"-r",
@@ -163,7 +165,7 @@ func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
 	})
 }
 
-func numberOfLambdas(concurrency uint, numRegions int) int {
+func numberOfLambdas(concurrency int, numRegions int) int {
 	if numRegions > int(concurrency) {
 		return int(concurrency)
 	}
@@ -180,8 +182,8 @@ func numberOfLambdas(concurrency uint, numRegions int) int {
 	return int(concurrency-1)/10 + 1
 }
 
-func divide(dividend uint, divisor int) (quotient, remainder uint) {
-	return dividend / uint(divisor), dividend % uint(divisor)
+func divide(dividend int, divisor int) (quotient, remainder int) {
+	return dividend / divisor, dividend % divisor
 }
 
 func reportingFrequency(numberOfLambdas int) time.Duration {
@@ -189,17 +191,17 @@ func reportingFrequency(numberOfLambdas int) time.Duration {
 }
 
 func (c TestConfig) check() error {
-	concurrencyLimit := 25000 * uint(len(c.Regions))
+	concurrencyLimit := 25000 * len(c.Regions)
 	if c.Concurrency < 1 || c.Concurrency > concurrencyLimit {
 		return fmt.Errorf("Invalid concurrency (use 1 - %d)", concurrencyLimit)
 	}
-	if (c.TotalRequests < 1 && c.ExecTimeout <= 0) || c.TotalRequests > 2000000 {
+	if (c.Requests < 1 && c.Timelimit <= 0) || c.Requests > 2000000 {
 		return errors.New("Invalid total requests (use 1 - 2000000)")
 	}
-	if c.ExecTimeout > 3600 {
+	if c.Timelimit > 3600 {
 		return errors.New("Invalid maximum execution time in seconds (use 0 - 3600)")
 	}
-	if c.RequestTimeout.Nanoseconds() < nano || c.RequestTimeout.Nanoseconds() > nano*100 {
+	if c.Timeout < 1 || c.Timeout > 100 {
 		return errors.New("Invalid timeout (1s - 100s)")
 	}
 	for _, region := range c.Regions {
@@ -224,6 +226,6 @@ func (c TestConfig) check() error {
 
 func (t *Test) Clean() {
 	if t.infra != nil {
-		t.infra.Clean();
+		t.infra.Clean()
 	}
 }
