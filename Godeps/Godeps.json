@@ -7,6 +7,18 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "github.com/alecthomas/template",
+			"Rev": "a0175ee3bccc567396460bf5acd36800cb10c49c"
+		},
+		{
+			"ImportPath": "github.com/alecthomas/template/parse",
+			"Rev": "a0175ee3bccc567396460bf5acd36800cb10c49c"
+		},
+		{
+			"ImportPath": "github.com/alecthomas/units",
+			"Rev": "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
+		},
+		{
 			"ImportPath": "github.com/aws/aws-sdk-go/aws",
 			"Comment": "v1.0.11-1-g87b1e60",
 			"Rev": "87b1e60a50b09e4812dee560b33a238f67305804"
@@ -203,6 +215,11 @@
 			"ImportPath": "github.com/stretchr/testify/assert",
 			"Comment": "v1.1.3",
 			"Rev": "f390dcf405f7b83c997eac1b06768bb9f44dec18"
+		},
+		{
+			"ImportPath": "gopkg.in/alecthomas/kingpin.v2",
+			"Comment": "v2.2.3",
+			"Rev": "e9044be3ab2a8e11d4e1f418d12f0790d57e8d70"
 		}
 	]
 }
