@@ -200,6 +200,21 @@
 			"Rev": "e882a96ec18dd43fa283187b66af74497c9101c0"
 		},
 		{
+			"ImportPath": "github.com/naoina/go-stringutil",
+			"Comment": "v0.1.0",
+			"Rev": "6b638e95a32d0c1131db0e7fe83775cbea4a0d0b"
+		},
+		{
+			"ImportPath": "github.com/naoina/toml",
+			"Comment": "v0.1.0-34-gac014c6",
+			"Rev": "ac014c6b6502388d89a85552b7208b8da7cfe104"
+		},
+		{
+			"ImportPath": "github.com/naoina/toml/ast",
+			"Comment": "v0.1.0-34-gac014c6",
+			"Rev": "ac014c6b6502388d89a85552b7208b8da7cfe104"
+		},
+		{
 			"ImportPath": "github.com/nsf/termbox-go",
 			"Rev": "362329b0aa6447eadd52edd8d660ec1dff470295"
 		},
