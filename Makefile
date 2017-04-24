@@ -1,5 +1,8 @@
 all: osx linux windows
 
+test:
+	go test ./...
+
 lambda:
 	GOOS=linux GOARCH=amd64 go build -o data/lambda/goad-lambda ./lambda
 	zip -jr data/lambda data/lambda
@@ -21,6 +24,7 @@ windows: bindata
 
 clean:
 	rm -rf data/lambda/goad-lambda
+	rm -rf data/lambda.zip
 	rm -rf build
 
 all-zip: all

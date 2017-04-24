@@ -56,6 +56,7 @@ var supportedRegions = []string{
 type Test struct {
 	Config *TestConfig
 	infra  *infrastructure.Infrastructure
+	lambdas int
 }
 
 // NewTest returns a configured Test
@@ -85,12 +86,13 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 	}
 
 	t.infra = infra
+	t.lambdas = numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
 	t.invokeLambdas(awsConfig, infra.QueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
 	go func() {
-		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.TotalRequests) {
+		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.TotalRequests, t.lambdas) {
 			results <- result
 		}
 		close(results)
@@ -100,15 +102,13 @@ func (t *Test) Start() <-chan queue.RegionsAggData {
 }
 
 func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
-	lambdas := numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
-
-	for i := 0; i < lambdas; i++ {
+	for i := 0; i < t.lambdas; i++ {
 		region := t.Config.Regions[i%len(t.Config.Regions)]
-		requests, requestsRemainder := divide(t.Config.TotalRequests, lambdas)
-		concurrency, _ := divide(t.Config.Concurrency, lambdas)
+		requests, requestsRemainder := divide(t.Config.TotalRequests, t.lambdas)
+		concurrency, _ := divide(t.Config.Concurrency, t.lambdas)
 		execTimeout := t.Config.ExecTimeout
 
-		if requestsRemainder > 0 && i == lambdas-1 {
+		if requestsRemainder > 0 && i == t.lambdas-1 {
 			requests += requestsRemainder
 		}
 
@@ -129,7 +129,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			"-t",
 			fmt.Sprintf("%s", c.RequestTimeout.String()),
 			"-f",
-			fmt.Sprintf("%s", reportingFrequency(lambdas).String()),
+			fmt.Sprintf("%s", reportingFrequency(t.lambdas).String()),
 			"-r",
 			fmt.Sprintf("%s", region),
 			"-m",
@@ -196,8 +196,8 @@ func (c TestConfig) check() error {
 	if (c.TotalRequests < 1 && c.ExecTimeout <= 0) || c.TotalRequests > 2000000 {
 		return errors.New("Invalid total requests (use 1 - 2000000)")
 	}
-	if c.ExecTimeout > 300 {
-		return errors.New("Invalid maximum execution time in seconds (use 0 - 300)")
+	if c.ExecTimeout > 3600 {
+		return errors.New("Invalid maximum execution time in seconds (use 0 - 3600)")
 	}
 	if c.RequestTimeout.Nanoseconds() < nano || c.RequestTimeout.Nanoseconds() > nano*100 {
 		return errors.New("Invalid timeout (1s - 100s)")

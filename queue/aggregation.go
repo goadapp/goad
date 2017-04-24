@@ -22,26 +22,28 @@ type AggData struct {
 	Region               string         `json:"region"`
 	FatalError           string         `json:"fatal-error"`
 	Finished             bool           `json:"finished"`
+	FinishedLambdas      int            `json:"finished-lambdas"`
 }
 
 // RegionsAggData type
 type RegionsAggData struct {
 	Regions               map[string]AggData
 	TotalExpectedRequests uint
+	lambdasByRegion       int
 }
 
 func (d *RegionsAggData) allRequestsReceived() bool {
 	var requests uint
-	var finishedCount int
+	var finishedRegions int
 
 	for _, region := range d.Regions {
 		requests += uint(region.TotalReqs)
-		if region.Finished {
-			finishedCount += 1
+		if region.FinishedLambdas == d.lambdasByRegion {
+			finishedRegions += 1
 		}
 	}
 
-	return requests == d.TotalExpectedRequests || finishedCount == len(d.Regions)
+	return d.TotalExpectedRequests > 0 && requests == d.TotalExpectedRequests || finishedRegions == len(d.Regions)
 }
 
 func addResult(data *AggData, result *AggData, isFinalSum bool) {
@@ -77,7 +79,7 @@ func addResult(data *AggData, result *AggData, isFinalSum bool) {
 		data.Fastest = result.Fastest
 	}
 	if result.Finished {
-		data.Finished = true
+		data.FinishedLambdas += 1
 	}
 }
 
@@ -92,15 +94,15 @@ func SumRegionResults(regionData *RegionsAggData) *AggData {
 }
 
 // Aggregate listens for results and sends totals, closing the channel when done
-func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) chan RegionsAggData {
+func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests uint, lambdasByRegion int) chan RegionsAggData {
 	results := make(chan RegionsAggData)
-	go aggregate(results, awsConfig, queueURL, totalExpectedRequests)
+	go aggregate(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
 	return results
 }
 
-func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint) {
+func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests uint, lambdasByRegion int) {
 	defer close(results)
-	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests}
+	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
 
 	adaptor := NewSQSAdaptor(awsConfig, queueURL)
 	timeoutStart := time.Now()

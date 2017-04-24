@@ -202,13 +202,22 @@ func (infra *Infrastructure) createIAMLambdaRolePolicy(roleName string) error {
 		PolicyDocument: aws.String(`{
           "Version": "2012-10-17",
           "Statement": [
-            {
-              "Action": [
-                "sqs:SendMessage"
-              ],
-              "Effect": "Allow",
-              "Resource": "arn:aws:sqs:*:*:goad-*"
-		  	},
+					{
+				 "Action": [
+						 "sqs:SendMessage"
+				 ],
+				 "Effect": "Allow",
+				 "Resource": "arn:aws:sqs:*:*:goad-*"
+		 },
+		 {
+				 "Effect": "Allow",
+				 "Action": [
+						 "lambda:Invoke*"
+				 ],
+				 "Resource": [
+						 "arn:aws:lambda:*:*:goad:*"
+				 ]
+		 },
 			{
               "Action": [
                 "logs:CreateLogGroup",

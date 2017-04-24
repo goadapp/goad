@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,27 +17,37 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 	"github.com/goadapp/goad/helpers"
 	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/version"
 )
 
-const lambdaTimeout = 295
+const AWS_MAX_TIMEOUT = 295
 
 func main() {
+	lambdaSettings := parseLambdaSettings()
+	Lambda := NewLambda(lambdaSettings)
+	Lambda.runLoadTest()
+}
 
+func parseLambdaSettings() LambdaSettings {
 	var (
-		address          string
-		sqsurl           string
-		concurrencycount int
-		maxRequestCount  int
-		execTimeout      int
-		timeout          string
-		frequency        string
-		awsregion        string
-		queueRegion      string
-		requestMethod    string
-		requestBody      string
-		requestHeaders   helpers.StringsliceFlag
+		address                       string
+		sqsurl                        string
+		concurrencycount              int
+		maxRequestCount               int
+		execTimeout                   int
+		previousCompletedRequestCount int
+		timeout                       string
+		frequency                     string
+		awsregion                     string
+		queueRegion                   string
+		requestMethod                 string
+		requestBody                   string
+		requestHeaders                helpers.StringsliceFlag
 	)
 
 	flag.StringVar(&address, "u", "", "URL to load test (required)")
@@ -49,32 +61,78 @@ func main() {
 
 	flag.IntVar(&concurrencycount, "c", 10, "number of concurrent requests")
 	flag.IntVar(&maxRequestCount, "n", 1000, "number of total requests to make")
+	flag.IntVar(&previousCompletedRequestCount, "p", 0, "number of previous requests already made by lambda")
 	flag.IntVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
 
 	flag.Var(&requestHeaders, "H", "List of headers")
 	flag.Parse()
-
-	if execTimeout <= 0 || execTimeout > lambdaTimeout {
-		execTimeout = lambdaTimeout
-	}
 
 	clientTimeout, _ := time.ParseDuration(timeout)
 	fmt.Printf("Using a timeout of %s\n", clientTimeout)
 	reportingFrequency, _ := time.ParseDuration(frequency)
 	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
 
-	// InsecureSkipVerify so that sites with self signed certs can be tested
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-	client.Timeout = clientTimeout
-
 	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
-	runLoadTest(client, sqsurl, address, maxRequestCount, execTimeout, concurrencycount, awsregion, reportingFrequency, queueRegion, requestMethod, requestBody, requestHeaders)
+
+	requestParameters := requestParameters{
+		URL:            address,
+		RequestHeaders: requestHeaders,
+		RequestMethod:  requestMethod,
+		RequestBody:    requestBody,
+	}
+
+	lambdaSettings := LambdaSettings{
+		ClientTimeout:         clientTimeout,
+		SqsURL:                sqsurl,
+		MaxRequestCount:       maxRequestCount,
+		CompletedRequestCount: previousCompletedRequestCount,
+		ConcurrencyCount:      concurrencycount,
+		QueueRegion:           queueRegion,
+		LambdaRegion:          awsregion,
+		ReportingFrequency:    reportingFrequency,
+		RequestParameters:     requestParameters,
+		StresstestTimeout:     execTimeout,
+	}
+	return lambdaSettings
 }
 
-type RequestResult struct {
+// LambdaSettings represent the Lambdas configuration
+type LambdaSettings struct {
+	LambdaExecTimeoutSeconds int
+	SqsURL                   string
+	MaxRequestCount          int
+	CompletedRequestCount    int
+	StresstestTimeout        int
+	ConcurrencyCount         int
+	QueueRegion              string
+	LambdaRegion             string
+	ReportingFrequency       time.Duration
+	ClientTimeout            time.Duration
+	RequestParameters        requestParameters
+}
+
+// goadLambda holds the current state of the execution
+type goadLambda struct {
+	Settings      LambdaSettings
+	HTTPClient    *http.Client
+	Metrics       *requestMetric
+	lambdaService lambdaiface.LambdaAPI
+	resultSender  resultSender
+	results       chan requestResult
+	jobs          chan struct{}
+	StartTime     time.Time
+	wg            sync.WaitGroup
+}
+
+type requestParameters struct {
+	URL            string
+	Requestcount   int
+	RequestMethod  string
+	RequestBody    string
+	RequestHeaders []string
+}
+
+type requestResult struct {
 	Time             int64  `json:"time"`
 	Host             string `json:"host"`
 	Type             string `json:"type"`
@@ -88,252 +146,423 @@ type RequestResult struct {
 	State            string `json:"state"`
 }
 
-func runLoadTest(client *http.Client, sqsurl string, url string, totalRequests int, execTimeout int, concurrencycount int, awsregion string, reportingFrequency time.Duration, queueRegion string, requestMethod string, requestBody string, requestHeaders []string) {
-	awsConfig := aws.NewConfig().WithRegion(queueRegion)
-	sqsAdaptor := queue.NewSQSAdaptor(awsConfig, sqsurl)
-	//sqsAdaptor := queue.NewDummyAdaptor(sqsurl)
-	jobs := make(chan struct{}, totalRequests)
-	ch := make(chan RequestResult, totalRequests)
-	var wg sync.WaitGroup
-	loadTestStartTime := time.Now()
-	var requestsSoFar int
-	for i := 0; i < totalRequests; i++ {
-		jobs <- struct{}{}
+func (l *goadLambda) runLoadTest() {
+	l.StartTime = time.Now()
+
+	l.spawnConcurrentWorkers()
+
+	ticker := time.NewTicker(l.Settings.ReportingFrequency)
+	quit := time.NewTimer(time.Duration(l.Settings.LambdaExecTimeoutSeconds) * time.Second)
+	timedOut := false
+	finished := false
+
+	for !timedOut && !finished {
+		select {
+		case r := <-l.results:
+			l.Settings.CompletedRequestCount++
+
+			l.Metrics.addRequest(&r)
+			if l.Settings.CompletedRequestCount%1000 == 0 || l.Settings.CompletedRequestCount == l.Settings.MaxRequestCount {
+				fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(l.Settings.CompletedRequestCount)/float64(l.Settings.MaxRequestCount))*100.0, l.Settings.CompletedRequestCount, l.Settings.MaxRequestCount)
+			}
+			continue
+
+		case <-ticker.C:
+			if l.Metrics.requestCountSinceLastSend > 0 {
+				l.Metrics.sendAggregatedResults(l.resultSender)
+				fmt.Printf("\nYay🎈  - %d requests completed\n", l.Settings.CompletedRequestCount)
+			}
+			continue
+
+		case <-func() chan bool {
+			quit := make(chan bool)
+			go func() {
+				l.wg.Wait()
+				quit <- true
+			}()
+			return quit
+		}():
+			finished = true
+			continue
+
+		case <-quit.C:
+			ticker.Stop()
+			timedOut = true
+			finished = l.updateStresstestTimeout()
+		}
 	}
-	close(jobs)
+	if timedOut && !finished {
+		l.forkNewLambda()
+	}
+	l.Metrics.aggregatedResults.Finished = finished
+	l.Metrics.sendAggregatedResults(l.resultSender)
+	fmt.Printf("\nYay🎈  - %d requests completed\n", l.Settings.CompletedRequestCount)
+}
+
+// NewLambda creates a new Lambda to execute a load test from a given
+// LambdaSettings
+func NewLambda(s LambdaSettings) *goadLambda {
+	setLambdaExecTimeout(&s)
+	setDefaultConcurrencyCount(&s)
+
+	l := &goadLambda{}
+	l.Settings = s
+
+	l.Metrics = NewRequestMetric(s.LambdaRegion)
+	remainingRequestCount := s.MaxRequestCount - s.CompletedRequestCount
+	if remainingRequestCount < 0 {
+		remainingRequestCount = 0
+	}
+	l.setupHTTPClientForSelfsignedTLS()
+	awsSqsConfig := l.setupAwsConfig()
+	l.setupAwsSqsAdapter(awsSqsConfig)
+	l.setupJobQueue(remainingRequestCount)
+	l.results = make(chan requestResult)
+	return l
+}
+
+func setDefaultConcurrencyCount(s *LambdaSettings) {
+	if s.ConcurrencyCount < 1 {
+		s.ConcurrencyCount = 1
+	}
+}
+
+func setLambdaExecTimeout(s *LambdaSettings) {
+	if s.StresstestTimeout <= 0 || s.StresstestTimeout > AWS_MAX_TIMEOUT {
+		s.LambdaExecTimeoutSeconds = AWS_MAX_TIMEOUT
+	} else {
+		s.LambdaExecTimeoutSeconds = s.StresstestTimeout
+	}
+}
+
+func (l *goadLambda) setupHTTPClientForSelfsignedTLS() {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	l.HTTPClient = &http.Client{Transport: tr}
+	l.HTTPClient.Timeout = l.Settings.ClientTimeout
+}
+
+func (l *goadLambda) setupAwsConfig() *aws.Config {
+	return aws.NewConfig().WithRegion(l.Settings.QueueRegion)
+}
+
+func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
+	l.resultSender = queue.NewSQSAdaptor(config, l.Settings.SqsURL)
+}
+
+func (l *goadLambda) setupJobQueue(count int) {
+	l.jobs = make(chan struct{}, count)
+	for i := 0; i < count; i++ {
+		l.jobs <- struct{}{}
+	}
+	close(l.jobs)
+}
+
+func (l *goadLambda) updateStresstestTimeout() bool {
+	if l.Settings.StresstestTimeout != 0 {
+		l.Settings.StresstestTimeout -= l.Settings.LambdaExecTimeoutSeconds
+		return l.Settings.StresstestTimeout <= 0
+	}
+	return false
+}
+
+func (l *goadLambda) spawnConcurrentWorkers() {
 	fmt.Print("Spawning workers…")
-	for i := 0; i < concurrencycount; i++ {
-		wg.Add(1)
-		go fetch(loadTestStartTime, client, url, totalRequests, jobs, ch, &wg, awsregion, requestMethod, requestBody, requestHeaders)
+	for i := 0; i < l.Settings.ConcurrencyCount; i++ {
+		l.spawnWorker()
 		fmt.Print(".")
 	}
 	fmt.Println(" done.\nWaiting for results…")
-
-	ticker := time.NewTicker(reportingFrequency)
-	quit := time.NewTimer(time.Duration(execTimeout) * time.Second)
-	quitting := false
-
-	for (totalRequests == 0 || requestsSoFar < totalRequests) && !quitting {
-		i := 0
-
-		var timeToFirstTotal int64
-		var requestTimeTotal int64
-		totBytesRead := 0
-		statuses := make(map[string]int)
-		var firstRequestTime int64
-		var lastRequestTime int64
-		var slowest int64
-		var fastest int64
-		var totalTimedOut int
-		var totalConnectionError int
-
-		resetStats := false
-		for (totalRequests == 0 || requestsSoFar < totalRequests) && !quitting && !resetStats {
-			select {
-			case r := <-ch:
-				i++
-				requestsSoFar++
-				if requestsSoFar%10 == 0 || requestsSoFar == totalRequests {
-					fmt.Printf("\r%.2f%% done (%d requests out of %d)", (float64(requestsSoFar)/float64(totalRequests))*100.0, requestsSoFar, totalRequests)
-				}
-				if firstRequestTime == 0 {
-					firstRequestTime = r.Time
-				}
-
-				lastRequestTime = r.Time
-
-				if r.Timeout {
-					totalTimedOut++
-					continue
-				}
-				if r.ConnectionError {
-					totalConnectionError++
-					continue
-				}
-
-				if r.ElapsedLastByte > slowest {
-					slowest = r.ElapsedLastByte
-				}
-				if fastest == 0 {
-					fastest = r.ElapsedLastByte
-				} else {
-					if r.ElapsedLastByte < fastest {
-						fastest = r.ElapsedLastByte
-					}
-				}
-
-				timeToFirstTotal += r.ElapsedFirstByte
-				totBytesRead += r.Bytes
-				statusStr := strconv.Itoa(r.Status)
-				_, ok := statuses[statusStr]
-				if !ok {
-					statuses[statusStr] = 1
-				} else {
-					statuses[statusStr]++
-				}
-				requestTimeTotal += r.Elapsed
-
-			case <-ticker.C:
-				if i == 0 {
-					continue
-				}
-				resetStats = true
-
-			case <-quit.C:
-				ticker.Stop()
-				quitting = true
-			}
-		}
-
-		countOk := i - (totalTimedOut + totalConnectionError)
-		durationNanoSeconds := lastRequestTime - firstRequestTime
-		durationSeconds := float32(durationNanoSeconds) / float32(1000000000)
-		var reqPerSec float32
-		var kbPerSec float32
-		var avgTimeToFirst int64
-		var avgRequestTime int64
-
-		if durationSeconds > 0 {
-			reqPerSec = float32(countOk) / durationSeconds
-			kbPerSec = (float32(totBytesRead) / durationSeconds) / 1024.0
-		} else {
-			reqPerSec = 0
-			kbPerSec = 0
-		}
-		if countOk > 0 {
-			avgTimeToFirst = timeToFirstTotal / int64(countOk)
-			avgRequestTime = requestTimeTotal / int64(countOk)
-		} else {
-			avgTimeToFirst = 0
-			avgRequestTime = 0
-		}
-
-		finished := (totalRequests > 0 && requestsSoFar == totalRequests) || quitting
-		fatalError := ""
-		if (totalTimedOut + totalConnectionError) > i/2 {
-			fatalError = "Over 50% of requests failed, aborting"
-		}
-		aggData := queue.AggData{
-			i,
-			totalTimedOut,
-			totalConnectionError,
-			avgTimeToFirst,
-			totBytesRead,
-			statuses,
-			avgRequestTime,
-			reqPerSec,
-			kbPerSec,
-			slowest,
-			fastest,
-			awsregion,
-			fatalError,
-			finished,
-		}
-		sqsAdaptor.SendResult(aggData)
-	}
-	fmt.Printf("\nYay🎈  - %d requests completed\n", requestsSoFar)
-
 }
 
-func fetch(loadTestStartTime time.Time, client *http.Client, address string, requestcount int, jobs <-chan struct{}, ch chan RequestResult, wg *sync.WaitGroup, awsregion string, requestMethod string, requestBody string, requestHeaders []string) {
-	defer wg.Done()
+func (l *goadLambda) spawnWorker() {
+	l.wg.Add(1)
+	go func() {
+		defer l.wg.Done()
+		work(l)
+	}()
+}
+
+func work(l *goadLambda) {
 	for {
-		if requestcount > 0 {
-			_, ok := <- jobs
+		if l.Settings.MaxRequestCount > 0 {
+			_, ok := <-l.jobs
 			if !ok {
 				break
 			}
 		}
-		start := time.Now()
-		req, err := http.NewRequest(requestMethod, address, bytes.NewBufferString(requestBody))
-		if err != nil {
-			fmt.Println("Error creating the HTTP request:", err)
-			return
-		}
-		req.Header.Add("Accept-Encoding", "gzip")
-		for _, v := range requestHeaders {
-			header := strings.Split(v, ":")
-			if strings.ToLower(strings.Trim(header[0], " ")) == "host" {
-				req.Host = strings.Trim(header[1], " ")
-			} else {
-				req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+		l.results <- fetch(l.HTTPClient, l.Settings.RequestParameters, l.StartTime)
+	}
+}
+
+func fetch(client *http.Client, p requestParameters, loadTestStartTime time.Time) requestResult {
+	start := time.Now()
+	req := prepareHttpRequest(p)
+	response, err := client.Do(req)
+
+	var status string
+	var elapsedFirstByte time.Duration
+	var elapsedLastByte time.Duration
+	var elapsed time.Duration
+	var statusCode int
+	var bytesRead int
+	buf := []byte(" ")
+	timedOut := false
+	connectionError := false
+	isRedirect := err != nil && strings.Contains(err.Error(), "redirect")
+	if err != nil && !isRedirect {
+		status = fmt.Sprintf("ERROR: %s\n", err)
+		switch err := err.(type) {
+		case *url.Error:
+			if err, ok := err.Err.(net.Error); ok && err.Timeout() {
+				timedOut = true
+			}
+		case net.Error:
+			if err.Timeout() {
+				timedOut = true
 			}
 		}
 
-		if req.Header.Get("User-Agent") == "" {
-			req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
+		if !timedOut {
+			connectionError = true
 		}
-
-		response, err := client.Do(req)
-		var status string
-		var elapsedFirstByte time.Duration
-		var elapsedLastByte time.Duration
-		var elapsed time.Duration
-		var statusCode int
-		var bytesRead int
-		buf := []byte(" ")
-		timedOut := false
-		connectionError := false
-		isRedirect := err != nil && strings.Contains(err.Error(), "redirect")
-		if err != nil && !isRedirect {
-			status = fmt.Sprintf("ERROR: %s\n", err)
-			switch err := err.(type) {
-			case *url.Error:
-				if err, ok := err.Err.(net.Error); ok && err.Timeout() {
-					timedOut = true
-				}
-			case net.Error:
-				if err.Timeout() {
-					timedOut = true
-				}
+	} else {
+		statusCode = response.StatusCode
+		elapsedFirstByte = time.Since(start)
+		if !isRedirect {
+			_, err = response.Body.Read(buf)
+			firstByteRead := true
+			if err != nil {
+				status = fmt.Sprintf("reading first byte failed: %s\n", err)
+				firstByteRead = false
 			}
-
-			if !timedOut {
+			body, err := ioutil.ReadAll(response.Body)
+			if firstByteRead {
+				bytesRead = len(body) + 1
+			}
+			elapsedLastByte = time.Since(start)
+			if err != nil {
+				// todo: detect timeout here as well
+				status = fmt.Sprintf("reading response body failed: %s\n", err)
 				connectionError = true
+			} else {
+				status = "Success"
 			}
 		} else {
-			statusCode = response.StatusCode
-			elapsedFirstByte = time.Since(start)
-			if !isRedirect {
-				_, err = response.Body.Read(buf)
-				firstByteRead := true
-				if err != nil {
-					status = fmt.Sprintf("reading first byte failed: %s\n", err)
-					firstByteRead = false
-				}
-				body, err := ioutil.ReadAll(response.Body)
-				if firstByteRead {
-					bytesRead = len(body) + 1
-				}
-				elapsedLastByte = time.Since(start)
-				if err != nil {
-					// todo: detect timeout here as well
-					status = fmt.Sprintf("reading response body failed: %s\n", err)
-					connectionError = true
-				} else {
-					status = "Success"
-				}
-			} else {
-				status = "Redirect"
-			}
-			response.Body.Close()
+			status = "Redirect"
+		}
+		response.Body.Close()
 
-			elapsed = time.Since(start)
-		}
-		//fmt.Printf("Request end: %d, elapsed: %d\n", time.Now().Sub(loadTestStartTime).Nanoseconds(), elapsed.Nanoseconds())
-		result := RequestResult{
-			Time:             start.Sub(loadTestStartTime).Nanoseconds(),
-			Host:             req.URL.Host,
-			Type:             req.Method,
-			Status:           statusCode,
-			ElapsedFirstByte: elapsedFirstByte.Nanoseconds(),
-			ElapsedLastByte:  elapsedLastByte.Nanoseconds(),
-			Elapsed:          elapsed.Nanoseconds(),
-			Bytes:            bytesRead,
-			Timeout:          timedOut,
-			ConnectionError:  connectionError,
-			State:            status,
-		}
-		ch <- result
+		elapsed = time.Since(start)
 	}
+
+	result := requestResult{
+		Time:             start.Sub(loadTestStartTime).Nanoseconds(),
+		Host:             req.URL.Host,
+		Type:             req.Method,
+		Status:           statusCode,
+		ElapsedFirstByte: elapsedFirstByte.Nanoseconds(),
+		ElapsedLastByte:  elapsedLastByte.Nanoseconds(),
+		Elapsed:          elapsed.Nanoseconds(),
+		Bytes:            bytesRead,
+		Timeout:          timedOut,
+		ConnectionError:  connectionError,
+		State:            status,
+	}
+	return result
+}
+
+func prepareHttpRequest(params requestParameters) *http.Request {
+	req, err := http.NewRequest(params.RequestMethod, params.URL, bytes.NewBufferString(params.RequestBody))
+	if err != nil {
+		fmt.Println("Error creating the HTTP request:", err)
+		panic("")
+	}
+	req.Header.Add("Accept-Encoding", "gzip")
+	for _, v := range params.RequestHeaders {
+		header := strings.Split(v, ":")
+		if strings.ToLower(strings.Trim(header[0], " ")) == "host" {
+			req.Host = strings.Trim(header[1], " ")
+		} else {
+			req.Header.Add(strings.Trim(header[0], " "), strings.Trim(header[1], " "))
+		}
+	}
+
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Add("User-Agent", "Mozilla/5.0 (compatible; Goad/1.0; +https://goad.io)")
+	}
+	return req
+}
+
+type requestMetric struct {
+	aggregatedResults         *queue.AggData
+	firstRequestTime          int64
+	lastRequestTime           int64
+	timeToFirstTotal          int64
+	requestTimeTotal          int64
+	requestCountSinceLastSend int64
+}
+
+type resultSender interface {
+	SendResult(queue.AggData)
+}
+
+func NewRequestMetric(region string) *requestMetric {
+	metric := &requestMetric{
+		aggregatedResults: &queue.AggData{Region: region},
+	}
+	metric.resetAndKeepTotalReqs()
+	return metric
+}
+
+func (m *requestMetric) addRequest(r *requestResult) {
+	agg := m.aggregatedResults
+	agg.TotalReqs++
+	m.requestCountSinceLastSend++
+	if m.firstRequestTime == 0 {
+		m.firstRequestTime = r.Time
+	}
+	m.lastRequestTime = r.Time + r.Elapsed
+
+	if r.Timeout {
+		agg.TotalTimedOut++
+	} else if r.ConnectionError {
+		agg.TotalConnectionError++
+	} else {
+		agg.TotBytesRead += r.Bytes
+		m.requestTimeTotal += r.ElapsedLastByte
+		m.timeToFirstTotal += r.ElapsedFirstByte
+
+		agg.Fastest = Min(r.ElapsedLastByte, agg.Fastest)
+		agg.Slowest = Max(r.ElapsedLastByte, agg.Slowest)
+
+		statusStr := strconv.Itoa(r.Status)
+		_, ok := agg.Statuses[statusStr]
+		if !ok {
+			agg.Statuses[statusStr] = 1
+		} else {
+			agg.Statuses[statusStr]++
+		}
+	}
+	m.aggregate()
+}
+
+func (m *requestMetric) aggregate() {
+	agg := m.aggregatedResults
+	countOk := int(m.requestCountSinceLastSend) - (agg.TotalTimedOut + agg.TotalConnectionError)
+	timeDelta := time.Duration(m.lastRequestTime-m.firstRequestTime) * time.Nanosecond
+	timeDeltaInSeconds := float32(timeDelta.Seconds())
+	if timeDeltaInSeconds > 0 {
+		agg.AveKBytesPerSec = float32(agg.TotBytesRead) / timeDeltaInSeconds
+		agg.AveReqPerSec = float32(countOk) / timeDeltaInSeconds
+	}
+	if countOk > 0 {
+		agg.AveTimeToFirst = m.timeToFirstTotal / int64(countOk)
+		agg.AveTimeForReq = m.requestTimeTotal / int64(countOk)
+	}
+	agg.FatalError = ""
+	if (agg.TotalTimedOut + agg.TotalConnectionError) > int(m.requestCountSinceLastSend)/2 {
+		agg.FatalError = "Over 50% of requests failed, aborting"
+	}
+}
+
+func (m *requestMetric) sendAggregatedResults(sender resultSender) {
+	sender.SendResult(*m.aggregatedResults)
+	m.resetAndKeepTotalReqs()
+}
+
+func (m *requestMetric) resetAndKeepTotalReqs() {
+	m.requestCountSinceLastSend = 0
+	m.firstRequestTime = 0
+	m.lastRequestTime = 0
+	m.requestTimeTotal = 0
+	m.timeToFirstTotal = 0
+	m.aggregatedResults = &queue.AggData{
+		Region:   m.aggregatedResults.Region,
+		Statuses: make(map[string]int),
+		Fastest:  math.MaxInt64,
+		Finished: false,
+	}
+}
+
+func (l *goadLambda) forkNewLambda() {
+	svc := l.provideLambdaService()
+	args := l.getInvokeArgsForFork()
+
+	j, _ := json.Marshal(args)
+
+	output, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
+		FunctionName: aws.String("goad:" + version.LambdaVersion()),
+		InvokeArgs:   bytes.NewReader(j),
+	})
+	fmt.Println(output)
+	fmt.Println(err)
+}
+
+func (l *goadLambda) provideLambdaService() lambdaiface.LambdaAPI {
+	if l.lambdaService == nil {
+		l.lambdaService = lambda.New(session.New(), aws.NewConfig().WithRegion(l.Settings.LambdaRegion))
+	}
+	return l.lambdaService
+}
+
+func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
+	args := newLambdaInvokeArgs()
+	settings := l.Settings
+	params := settings.RequestParameters
+	args.Flags = []string{
+		"-u",
+		fmt.Sprintf("%s", params.URL),
+		"-c",
+		fmt.Sprintf("%s", strconv.Itoa(settings.ConcurrencyCount)),
+		"-n",
+		fmt.Sprintf("%s", strconv.Itoa(settings.MaxRequestCount)),
+		"-p",
+		fmt.Sprintf("%s", strconv.Itoa(l.Settings.CompletedRequestCount)),
+		"-N",
+		fmt.Sprintf("%s", strconv.Itoa(settings.StresstestTimeout)),
+		"-s",
+		fmt.Sprintf("%s", settings.SqsURL),
+		"-q",
+		fmt.Sprintf("%s", settings.QueueRegion),
+		"-t",
+		fmt.Sprintf("%s", settings.ClientTimeout.String()),
+		"-f",
+		fmt.Sprintf("%s", settings.ReportingFrequency.String()),
+		"-r",
+		fmt.Sprintf("%s", settings.LambdaRegion),
+		"-m",
+		fmt.Sprintf("%s", params.RequestMethod),
+		"-b",
+		fmt.Sprintf("%s", params.RequestBody),
+	}
+	return args
+}
+
+type invokeArgs struct {
+	File  string   `json:"file"`
+	Flags []string `json:"args"`
+}
+
+func newLambdaInvokeArgs() invokeArgs {
+	return invokeArgs{
+		File: "./goad-lambda",
+	}
+}
+
+// Min calculates minimum of two int64
+func Min(x, y int64) int64 {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+// Max calculates maximum of two int64
+func Max(x, y int64) int64 {
+	if x > y {
+		return x
+	}
+	return y
 }
