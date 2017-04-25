@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"encoding/json"
@@ -18,7 +18,7 @@ import (
 	ini "gopkg.in/ini.v1"
 
 	"github.com/dustin/go-humanize"
-	"github.com/goadapp/goad"
+	"github.com/goadapp/goad/goad"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
@@ -51,9 +51,9 @@ var (
 const coldef = termbox.ColorDefault
 const nano = 1000000000
 
-func main() {
+func Run() {
 	app.HelpFlag.Short('h')
-	app.Version(version.Version)
+	app.Version(version.String())
 	app.VersionFlag.Short('V')
 
 	config := aggregateConfiguration()

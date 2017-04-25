@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/goadapp/goad"
+	"github.com/goadapp/goad/goad"
 	"github.com/goadapp/goad/queue"
 	"github.com/gorilla/websocket"
 )

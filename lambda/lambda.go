@@ -57,7 +57,7 @@ func main() {
 
 func parseLambdaSettings() LambdaSettings {
 	app.HelpFlag.Short('h')
-	app.Version(version.Version)
+	app.Version(version.String())
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	requestParameters := requestParameters{
