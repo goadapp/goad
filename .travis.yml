@@ -1,12 +1,17 @@
 dist: trusty
-sudo: false
+sudo: required
 
 language: go
+go_import_path: github.com/goadapp/goad
 
 go:
-  - 1.6
+  - 1.8
+
+install:
+  - go get github.com/jteeuwen/go-bindata/...
 
 script:
+  - make test
   - make all-zip
 
 deploy:
