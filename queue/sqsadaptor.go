@@ -34,8 +34,8 @@ type DummyAdaptor struct {
 	QueueURL string
 }
 
-// NewSQSAdaptor returns a new sqs adator object
-func NewSQSAdaptor(awsConfig *aws.Config, queueURL string) *SQSAdaptor {
+// NewSQSAdapter returns a new sqs adator object
+func NewSQSAdapter(awsConfig *aws.Config, queueURL string) *SQSAdaptor {
 	return &SQSAdaptor{getClient(awsConfig), queueURL}
 }
 

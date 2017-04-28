@@ -238,7 +238,7 @@ func (l *goadLambda) setupAwsConfig() *aws.Config {
 }
 
 func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
-	l.resultSender = queue.NewSQSAdaptor(config, l.Settings.SqsURL)
+	l.resultSender = queue.NewSQSAdapter(config, l.Settings.SqsURL)
 }
 
 func (l *goadLambda) setupJobQueue(count int) {
