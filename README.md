@@ -62,28 +62,70 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 
 ```sh
 # Get help:
-$ goad -h
-Usage of goad:
-  -c uint
-      number of concurrent requests (default 10)
-  -m string
-      HTTP method (default "GET")
-  -n uint
-      number of total requests to make (default 1000)
-  -r string
-      AWS regions to run in (comma separated, no spaces) (default "us-east-1")
-  -t uint
-      request timeout in seconds (default 15)
-  -u string
-      URL to load test (required)
-  -H string
-      HTTP Header to add to the request. This option can be set multiple times.
+$ goad --help
+usage: goad [<flags>] <url>
+
+An AWS Lambda powered load testing tool
+
+Flags:
+  -h, --help                     Display usage information (this message)
+  -n, --requests=1000            Number of requests to perform. Set to 0 in
+                                 combination with a specified timelimit allows
+                                 for unlimited requests for the specified time.
+  -c, --concurrency=10           Number of multiple requests to make at a time
+  -t, --timelimit=3600           Seconds to max. to spend on benchmarking
+  -s, --timeout=15               Seconds to max. wait for each response
+  -H, --header=HEADER ...        Add Arbitrary header line, eg.
+                                 'Accept-Encoding: gzip' (repeatable)
+      --region=us-east-1... ...  AWS regions to run in. Repeat flag to run in
+                                 more then one region. (repeatable)
+      --output-json=OUTPUT-JSON  Optional path to file for JSON result storage
+  -m, --method="GET"             HTTP method
+      --body=BODY                HTTP request body
+  -V, --version                  Show application version.
+
+Args:
+  <url>  [http[s]://]hostname[:port]/path optional if defined in goad.ini
 
 # For example:
 $ goad -n 1000 -c 5 -u https://example.com
 ```
 
 Note that sites such as https://google.com that employ redirects cannot be tested correctly at this time.
+
+### Settings
+
+Goad supports to load settings stored in an ini file. It looks
+for a goad.ini file in the current working directory. Flags set on the command-line will
+be overwrite these settings.
+
+```ini
+[general]
+#url = http://example.com/
+timeout = 3600
+concurrency = 10
+requests = 1000
+timelimit = 15
+json-output = test-result.json
+method = GET
+body = Hello world
+
+[regions]
+us-east-1 ;N.Virginia
+#us-east-2 ;Ohio
+#us-west-1 ;N.California
+#us-west-2 ;Oregon
+eu-west-1 ;Ireland
+#eu-central-1 ;Frankfurt
+#ap-southeast-1 ;Singapore
+#ap-southeast-2 ;Tokio
+#ap-northeast-1 ;Sydney
+#ap-northeast-2 ;Seoul
+
+[headers]
+cache-control: no-cache
+auth-token: YOUR-SECRET-AUTH-TOKEN
+```
 
 ## How it works
 
@@ -94,7 +136,7 @@ Goad takes full advantage of the power of Amazon Lambdas and Go's concurrency fo
 Running Goad will create the following AWS resources:
 
 - An IAM Role for the lambda function.
-- An IAM Role Policy that allows the lambda function to send messages to SQS and publish logs.
+- An IAM Role Policy that allows the lambda function to send messages to SQS, to publish logs and to spawn new lambda in case an individual lambda times out on a long running test.
 - A lambda function.
 - An SQS queue for the test.
 
@@ -136,6 +178,7 @@ See the LICENSE file for more details.
 [Termbox]: https://github.com/nsf/termbox-go
 [UUID]: https://github.com/satori/go.uuid
 [bindata]: https://github.com/jteeuwen/go-bindata
+[toml]: https://github.com/toml-lang/toml
 
 [Gopher Gala]: http://gophergala.com/
 [Joao Cardoso]: https://twitter.com/jcxplorer

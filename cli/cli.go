@@ -1,99 +1,229 @@
-package main
+package cli
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
 	"os/signal"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"gopkg.in/alecthomas/kingpin.v2"
+	ini "gopkg.in/ini.v1"
+
 	"github.com/dustin/go-humanize"
-	"github.com/goadapp/goad"
-	"github.com/goadapp/goad/helpers"
+	"github.com/goadapp/goad/goad"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
 )
 
 var (
-	url         string
-	concurrency uint
-	requests    uint
-	execTimeout uint
-	timeout     uint
-	regions     string
-	method      string
-	body        string
-	headers     helpers.StringsliceFlag
-	awsProfile  string
-	outputFile  string
+	app             = kingpin.New("goad", "An AWS Lambda powered load testing tool")
+	urlArg          = app.Arg("url", "[http[s]://]hostname[:port]/path optional if defined in goad.ini")
+	url             = urlArg.String()
+	requestsFlag    = app.Flag("requests", "Number of requests to perform. Set to 0 in combination with a specified timelimit allows for unlimited requests for the specified time.").Short('n').Default("1000")
+	requests        = requestsFlag.Int()
+	concurrencyFlag = app.Flag("concurrency", "Number of multiple requests to make at a time").Short('c').Default("10")
+	concurrency     = concurrencyFlag.Int()
+	timelimitFlag   = app.Flag("timelimit", "Seconds to max. to spend on benchmarking").Short('t').Default("3600")
+	timelimit       = timelimitFlag.Int()
+	timeoutFlag     = app.Flag("timeout", "Seconds to max. wait for each response").Short('s').Default("15")
+	timeout         = timeoutFlag.Int()
+	headersFlag     = app.Flag("header", "Add Arbitrary header line, eg. 'Accept-Encoding: gzip' (repeatable)").Short('H')
+	headers         = headersFlag.Strings()
+	regionsFlag     = app.Flag("region", "AWS regions to run in. Repeat flag to run in more then one region. (repeatable)")
+	regions         = regionsFlag.Strings()
+	outputFileFlag  = app.Flag("output-json", "Optional path to file for JSON result storage")
+	outputFile      = outputFileFlag.String()
+	methodFlag      = app.Flag("method", "HTTP method").Short('m').Default("GET")
+	method          = methodFlag.String()
+	bodyFlag        = app.Flag("body", "HTTP request body")
+	body            = bodyFlag.String()
 )
 
 const coldef = termbox.ColorDefault
 const nano = 1000000000
 
-func main() {
-	var printVersion bool
+func Run() {
+	app.HelpFlag.Short('h')
+	app.Version(version.String())
+	app.VersionFlag.Short('V')
 
-	flag.StringVar(&url, "u", "", "URL to load test (required)")
-	flag.StringVar(&method, "m", "GET", "HTTP method")
-	flag.StringVar(&body, "b", "", "HTTP request body")
-	flag.UintVar(&concurrency, "c", 10, "number of concurrent requests")
-	flag.UintVar(&requests, "n", 1000, "number of total requests to make")
-	flag.UintVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
-	flag.UintVar(&timeout, "t", 15, "request timeout in seconds")
-	flag.StringVar(&regions, "r", "us-east-1,eu-west-1,ap-northeast-1", "AWS regions to run in (comma separated, no spaces)")
-	flag.StringVar(&awsProfile, "p", "", "AWS named profile to use")
-	flag.StringVar(&outputFile, "o", "", "Optional path to JSON file for result storage")
-	flag.Var(&headers, "H", "List of headers")
-	flag.BoolVar(&printVersion, "version", false, "print the current Goad version")
-	flag.Parse()
-
-	if printVersion {
-		fmt.Println(version.Version)
-		os.Exit(0)
-	}
-
-	if url == "" {
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	test, testerr := goad.NewTest(&goad.TestConfig{
-		URL:            url,
-		Concurrency:    concurrency,
-		TotalRequests:  requests,
-		ExecTimeout:    execTimeout,
-		RequestTimeout: time.Duration(timeout) * time.Second,
-		Regions:        strings.Split(regions, ","),
-		Method:         method,
-		Body:           body,
-		Headers:        headers,
-		AwsProfile:     awsProfile,
-	})
-	if testerr != nil {
-		fmt.Println(testerr)
-		os.Exit(1)
-	}
+	config := aggregateConfiguration()
+	test := createGoadTest(config)
 
 	var finalResult queue.RegionsAggData
 	defer printSummary(&finalResult)
 
-	if outputFile != "" {
-		defer saveJSONSummary(outputFile, &finalResult)
+	if config.Output != "" {
+		defer saveJSONSummary(*outputFile, &finalResult)
 	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
 
 	start(test, &finalResult, sigChan)
+}
+
+func aggregateConfiguration() *goad.TestConfig {
+	config := parseSettingsFile("goad.ini")
+	applyDefaultsFromConfig(config)
+	return parseCommandline()
+}
+
+func applyDefaultsFromConfig(config *goad.TestConfig) {
+	applyDefaultIfNotZero(bodyFlag, config.Body)
+	applyDefaultIfNotZero(concurrencyFlag, prepareInt(config.Concurrency))
+	applyDefaultIfNotZero(headersFlag, config.Headers)
+	applyDefaultIfNotZero(methodFlag, config.Method)
+	applyDefaultIfNotZero(outputFileFlag, config.Output)
+	applyDefaultIfNotZero(regionsFlag, config.Regions)
+	applyDefaultIfNotZero(requestsFlag, prepareInt(config.Requests))
+	applyDefaultIfNotZero(timelimitFlag, prepareInt(config.Timelimit))
+	applyDefaultIfNotZero(timeoutFlag, prepareInt(config.Timeout))
+	if config.URL == "" {
+		urlArg.Required()
+	} else {
+		urlArg.Default(config.URL)
+	}
+	if len(config.Regions) == 0 {
+		regionsFlag.Default("us-east-1", "eu-west-1", "ap-northeast-1")
+	}
+}
+
+func applyDefaultIfNotZero(flag *kingpin.FlagClause, def interface{}) {
+	value := reflect.ValueOf(def)
+	kind := value.Kind()
+	if isNotZero(value) {
+		if kind == reflect.Slice || kind == reflect.Array {
+			strs := make([]string, 0)
+			for i := 0; i < value.Len(); i++ {
+				strs = append(strs, value.Index(i).String())
+			}
+			flag.Default(strs...)
+		} else {
+			flag.Default(value.String())
+		}
+	}
+}
+
+func prepareInt(value int) string {
+	if value == 0 {
+		return ""
+	}
+	return strconv.Itoa(value)
+}
+
+func isNotZero(v reflect.Value) bool {
+	return !isZero(v)
+}
+
+func isZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Func, reflect.Map, reflect.Slice:
+		return v.IsNil()
+	case reflect.Array:
+		z := true
+		for i := 0; i < v.Len(); i++ {
+			z = z && isZero(v.Index(i))
+		}
+		return z
+	case reflect.Struct:
+		z := true
+		for i := 0; i < v.NumField(); i++ {
+			z = z && isZero(v.Field(i))
+		}
+		return z
+	}
+	// Compare other types directly:
+	z := reflect.Zero(v.Type())
+	return v.Interface() == z.Interface()
+}
+
+func parseSettingsFile(file string) *goad.TestConfig {
+	config := &goad.TestConfig{}
+	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, "goad.ini")
+	if err != nil {
+		if !os.IsNotExist(err) {
+			fmt.Println(err.Error())
+		}
+		return config
+	}
+	generalSection := cfg.Section("general")
+	config.URL = generalSection.Key("url").String()
+	config.Method = generalSection.Key("method").String()
+	config.Body = generalSection.Key("body").String()
+	config.Concurrency, _ = generalSection.Key("concurrency").Int()
+	config.Requests, _ = generalSection.Key("requests").Int()
+	config.Timelimit, _ = generalSection.Key("timelimit").Int()
+	config.Timeout, _ = generalSection.Key("timeout").Int()
+	config.Output = generalSection.Key("json-output").String()
+
+	regionsSection := cfg.Section("regions")
+	config.Regions = regionsSection.KeyStrings()
+
+	headersSection := cfg.Section("headers")
+	headerHash := headersSection.KeysHash()
+	config.Headers = foldHeaders(headerHash)
+	return config
+}
+
+func foldHeaders(hash map[string]string) []string {
+	headersList := make([]string, 0)
+	for k, v := range hash {
+		headersList = append(headersList, fmt.Sprintf("%s: %s", k, v))
+	}
+	return headersList
+}
+
+func parseCommandline() *goad.TestConfig {
+	args := os.Args[1:]
+
+	_, err := app.Parse(args)
+	if err != nil {
+		fmt.Println(err.Error())
+		app.Usage(args)
+		os.Exit(1)
+	}
+
+	regionsArray := parseRegionsForBackwardsCompatibility(*regions)
+
+	config := &goad.TestConfig{}
+	config.URL = *url
+	config.Concurrency = *concurrency
+	config.Requests = *requests
+	config.Timelimit = *timelimit
+	config.Timeout = *timeout
+	config.Regions = regionsArray
+	config.Method = *method
+	config.Body = *body
+	config.Headers = *headers
+	config.Output = *outputFile
+	return config
+}
+
+func parseRegionsForBackwardsCompatibility(regions []string) []string {
+	parsedRegions := make([]string, 0)
+	for _, str := range regions {
+		parsedRegions = append(parsedRegions, strings.Split(str, ",")...)
+	}
+	return parsedRegions
+}
+
+func createGoadTest(config *goad.TestConfig) *goad.Test {
+	test, err := goad.NewTest(config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	return test
 }
 
 func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
@@ -159,7 +289,7 @@ outer:
 			if result.TotalExpectedRequests > 0 {
 				percentDone = float64(totalReqs) / float64(result.TotalExpectedRequests)
 			} else {
-				percentDone = math.Min(float64(time.Since(startTime).Seconds()) / float64(test.Config.ExecTimeout), 1.0)
+				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Config.Timelimit), 1.0)
 			}
 			drawProgressBar(percentDone, y)
 

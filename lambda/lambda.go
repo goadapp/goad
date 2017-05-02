@@ -4,25 +4,47 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
-	"github.com/goadapp/goad/helpers"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
+)
+
+var (
+	app = kingpin.New("goad-lambda", "Utility deployed into aws lambda by goad")
+
+	address        = app.Arg("url", "URL to load test").Required().String()
+	requestMethod  = app.Flag("method", "HTTP method").Short('m').Default("GET").String()
+	requestBody    = app.Flag("body", "HTTP request body").Short('b').String()
+	requestHeaders = app.Flag("header", "List of headers").Short('H').Strings()
+
+	awsRegion   = app.Flag("aws-region", "AWS region to run in").Short('r').String()
+	queueRegion = app.Flag("queue-region", "SQS queue region").Short('q').String()
+	sqsURL      = app.Flag("sqsurl", "SQS URL").String()
+
+	clientTimeout      = app.Flag("client-timeout", "Request timeout duration").Short('s').Default("15s").Duration()
+	reportingFrequency = app.Flag("frequency", "Reporting frequency in seconds").Short('f').Default("15s").Duration()
+
+	concurrencyCount              = app.Flag("concurrency", "Number of concurrent requests").Short('c').Default("10").Int()
+	maxRequestCount               = app.Flag("requests", "Total number of requests to make").Short('n').Default("10").Int()
+	previousCompletedRequestCount = app.Flag("completed-count", "Number of requests already completed in case of lambda timeout").Short('p').Default("0").Int()
+	execTimeout                   = app.Flag("execution-time", "Maximum execution time in seconds").Short('t').Default("0").Int()
 )
 
 const AWS_MAX_TIMEOUT = 295
@@ -34,64 +56,28 @@ func main() {
 }
 
 func parseLambdaSettings() LambdaSettings {
-	var (
-		address                       string
-		sqsurl                        string
-		concurrencycount              int
-		maxRequestCount               int
-		execTimeout                   int
-		previousCompletedRequestCount int
-		timeout                       string
-		frequency                     string
-		awsregion                     string
-		queueRegion                   string
-		requestMethod                 string
-		requestBody                   string
-		requestHeaders                helpers.StringsliceFlag
-	)
-
-	flag.StringVar(&address, "u", "", "URL to load test (required)")
-	flag.StringVar(&requestMethod, "m", "GET", "HTTP method")
-	flag.StringVar(&requestBody, "b", "", "HTTP request body")
-	flag.StringVar(&awsregion, "r", "", "AWS region to run in")
-	flag.StringVar(&queueRegion, "q", "", "Queue region")
-	flag.StringVar(&sqsurl, "s", "", "sqsUrl")
-	flag.StringVar(&timeout, "t", "15s", "request timeout in seconds")
-	flag.StringVar(&frequency, "f", "15s", "Reporting frequency in seconds")
-
-	flag.IntVar(&concurrencycount, "c", 10, "number of concurrent requests")
-	flag.IntVar(&maxRequestCount, "n", 1000, "number of total requests to make")
-	flag.IntVar(&previousCompletedRequestCount, "p", 0, "number of previous requests already made by lambda")
-	flag.IntVar(&execTimeout, "N", 0, "Maximum execution time in seconds")
-
-	flag.Var(&requestHeaders, "H", "List of headers")
-	flag.Parse()
-
-	clientTimeout, _ := time.ParseDuration(timeout)
-	fmt.Printf("Using a timeout of %s\n", clientTimeout)
-	reportingFrequency, _ := time.ParseDuration(frequency)
-	fmt.Printf("Using a reporting frequency of %s\n", reportingFrequency)
-
-	fmt.Printf("Will spawn %d workers making %d requests to %s\n", concurrencycount, maxRequestCount, address)
+	app.HelpFlag.Short('h')
+	app.Version(version.String())
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	requestParameters := requestParameters{
-		URL:            address,
-		RequestHeaders: requestHeaders,
-		RequestMethod:  requestMethod,
-		RequestBody:    requestBody,
+		URL:            *address,
+		RequestHeaders: *requestHeaders,
+		RequestMethod:  *requestMethod,
+		RequestBody:    *requestBody,
 	}
 
 	lambdaSettings := LambdaSettings{
-		ClientTimeout:         clientTimeout,
-		SqsURL:                sqsurl,
-		MaxRequestCount:       maxRequestCount,
-		CompletedRequestCount: previousCompletedRequestCount,
-		ConcurrencyCount:      concurrencycount,
-		QueueRegion:           queueRegion,
-		LambdaRegion:          awsregion,
-		ReportingFrequency:    reportingFrequency,
+		ClientTimeout:         *clientTimeout,
+		SqsURL:                *sqsURL,
+		MaxRequestCount:       *maxRequestCount,
+		CompletedRequestCount: *previousCompletedRequestCount,
+		ConcurrencyCount:      *concurrencyCount,
+		QueueRegion:           *queueRegion,
+		LambdaRegion:          *awsRegion,
+		ReportingFrequency:    *reportingFrequency,
 		RequestParameters:     requestParameters,
-		StresstestTimeout:     execTimeout,
+		StresstestTimeout:     *execTimeout,
 	}
 	return lambdaSettings
 }
@@ -147,6 +133,10 @@ type requestResult struct {
 }
 
 func (l *goadLambda) runLoadTest() {
+	fmt.Printf("Using a timeout of %s\n", l.Settings.ClientTimeout)
+	fmt.Printf("Using a reporting frequency of %s\n", l.Settings.ReportingFrequency)
+	fmt.Printf("Will spawn %d workers making %d requests to %s\n", l.Settings.ConcurrencyCount, l.Settings.MaxRequestCount, l.Settings.RequestParameters.URL)
+
 	l.StartTime = time.Now()
 
 	l.spawnConcurrentWorkers()
