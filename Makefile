@@ -44,7 +44,7 @@ lambda:
 	@$(ZIP) data/lambda data/lambda
 
 bindata: lambda
-	@go get -u github.com/jteeuwen/go-bindata/...
+	@go get github.com/jteeuwen/go-bindata/...
 	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
 
 linux: bindata
