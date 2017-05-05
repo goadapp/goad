@@ -104,7 +104,7 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 	defer close(results)
 	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
 
-	adaptor := NewSQSAdaptor(awsConfig, queueURL)
+	adaptor := NewSQSAdapter(awsConfig, queueURL)
 	timeoutStart := time.Now()
 	for {
 		result := adaptor.Receive()
