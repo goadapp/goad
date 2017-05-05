@@ -31,9 +31,9 @@ GO-BUILD = go build $(LDFLAGS)
 # $(ZIP) command ignoring timestamps and using UTC timezone
 ZIP = TZ=UTC zip -jrX
 
-.PHONY: lambda bindata clean all-zip all linux osx windows check fmt test install uninstall
+.PHONY: lambda bindata clean all-zip all linux32 linux64 osx64 win32 win64 deb32 deb64 rpm32 rpm64 rpm check fmt test install uninstall
 
-all: osx linux windows
+all: osx64 linux32 linux64 win32 win64
 
 test: bindata
 	@go test $(TEST)
@@ -47,15 +47,19 @@ bindata: lambda
 	@go get github.com/jteeuwen/go-bindata/...
 	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
 
-linux: bindata
+linux64: bindata
 	@GOOS=linux GOARCH=amd64 $(GO-BUILD) -o build/linux/x86-64/$(TARGET)
+
+linux32: bindata
 	@GOOS=linux GOARCH=386 $(GO-BUILD) -o build/linux/x86/$(TARGET)
 
-osx: bindata
+osx64: bindata
 	@GOOS=darwin GOARCH=amd64 $(GO-BUILD) -o build/osx/x86-64/$(TARGET)
 
-windows: bindata
+win64: bindata
 	@GOOS=windows GOARCH=amd64 $(GO-BUILD) -o build/windows/x86-64/$(TARGET)
+
+win32: bindata
 	@GOOS=windows GOARCH=386 $(GO-BUILD) -o build/windows/x86/$(TARGET)
 
 clean:
@@ -84,6 +88,28 @@ check:
 	@for d in $$(go list ./... | grep -v /vendor/); do golint $${d}; done
 	@go tool vet ${SRC}
 
+DEB64-PATH = build/goad_amd64
+deb64: linux64
+	@mkdir -p ./$(DEB64-PATH)/usr/bin
+	@cp build/linux/x86-64/goad $(DEB64-PATH)/usr/bin/
+	@cp -r DEBIAN/ $(DEB64-PATH)
+	@sed -i s/{{ARCH}}/amd64/ $(DEB64-PATH)/DEBIAN/control
+	@sed -i s/{{VERSION}}/$(VERSION)/ $(DEB64-PATH)/DEBIAN/control
+	@sed -i s/{{MAINTAINER}}/$(MAINTAINER)/ $(DEB64-PATH)/DEBIAN/control
+	@dpkg-deb --build $(DEB64-PATH)
+	@rm -rf $(DEB64-PATH)
+
+DEB32-PATH = build/goad_i386
+deb32: linux32
+	@mkdir -p ./$(DEB32-PATH)/usr/bin
+	@cp build/linux/x86/goad $(DEB32-PATH)/usr/bin/
+	@cp -r DEBIAN/ $(DEB32-PATH)
+	@sed -i s/{{ARCH}}/i386/ $(DEB32-PATH)/DEBIAN/control
+	@sed -i s/{{VERSION}}/$(VERSION)/ $(DEB32-PATH)/DEBIAN/control
+	@sed -i s/{{MAINTAINER}}/$(MAINTAINER)/ $(DEB32-PATH)/DEBIAN/control
+	@dpkg-deb --build $(DEB32-PATH)
+	@rm -rf $(DEB32-PATH)
+
 all-zip: all
 	@mkdir -p ./build/zip
 	@find build -exec touch -t $(TIMESTAMP) {} \; # strip timestamp
@@ -92,3 +118,17 @@ all-zip: all
 	@$(ZIP) ./build/zip/goad-linux-x86 ./build/linux/x86/goad
 	@$(ZIP) ./build/zip/goad-windows-x86-64 ./build/windows/x86-64/goad
 	@$(ZIP) ./build/zip/goad-windows-x86 ./build/windows/x86/goad
+
+rpm32: deb32
+	@pushd build && \
+	sudo alien --to-rpm -k goad_i386.deb && \
+	mv goad-$(VERSION)-1.i386.rpm goad.i386.rpm
+
+rpm64: deb64
+	@pushd build && \
+	sudo alien --to-rpm -k goad_amd64.deb && \
+	mv goad-$(VERSION)-1.x86_64.rpm goad.x86_64.rpm
+
+rpm: rpm32 rpm64
+
+linux-packages: deb32 deb64 rpm
