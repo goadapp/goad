@@ -42,6 +42,7 @@ const (
 	headerKey      = "header"
 	regionKey      = "region"
 	writeIniKey    = "create-ini-template"
+	runDockerKey   = "run-docker"
 )
 
 var (
@@ -68,6 +69,8 @@ var (
 	body            = bodyFlag.String()
 	writeIniFlag    = app.Flag(writeIniKey, "create sample configuration file \""+iniFile+"\" in current working directory")
 	writeIni        = writeIniFlag.Bool()
+	runDockerFlag   = app.Flag(runDockerKey, "execute in docker container instead of aws lambda")
+	runDocker       = runDockerFlag.Bool()
 )
 
 // Run the goad cli
@@ -124,6 +127,9 @@ func applyDefaultsFromConfig(config *goad.TestConfig) {
 	}
 	if len(config.Regions) == 0 {
 		regionsFlag.Default("us-east-1", "eu-west-1", "ap-northeast-1")
+	}
+	if config.RunDocker {
+		runDockerFlag.Default("true")
 	}
 }
 
@@ -191,6 +197,7 @@ func parseSettings(source interface{}) *goad.TestConfig {
 	headersSection := cfg.Section("headers")
 	headerHash := headersSection.KeysHash()
 	config.Headers = foldHeaders(headerHash)
+
 	generalSection := cfg.Section(general)
 	config.URL = generalSection.Key(urlKey).String()
 	config.Method = generalSection.Key(methodKey).String()
@@ -200,6 +207,7 @@ func parseSettings(source interface{}) *goad.TestConfig {
 	config.Timelimit, _ = generalSection.Key(timelimitKey).Int()
 	config.Timeout, _ = generalSection.Key(timeoutKey).Int()
 	config.Output = generalSection.Key(jsonOutputKey).String()
+	config.RunDocker, _ = generalSection.Key(runDockerKey).Bool()
 	return config
 }
 
@@ -214,7 +222,7 @@ func foldHeaders(hash map[string]string) []string {
 func parseCommandline() *goad.TestConfig {
 	args := os.Args[1:]
 
-	app.Parse(args)
+	kingpin.MustParse(app.Parse(args))
 	if *writeIni {
 		writeIniFile()
 		fmt.Printf("Sample configuration written to: %s\n", iniFile)
@@ -240,6 +248,7 @@ func parseCommandline() *goad.TestConfig {
 	config.Body = *body
 	config.Headers = *headers
 	config.Output = *outputFile
+	config.RunDocker = *runDocker
 	return config
 }
 
@@ -261,6 +270,10 @@ func createGoadTest(config *goad.TestConfig) *goad.Test {
 }
 
 func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
+	if test.Config.RunDocker {
+		goad.PullDockerImage()
+	}
+
 	err := termbox.Init()
 	if err != nil {
 		panic(err)

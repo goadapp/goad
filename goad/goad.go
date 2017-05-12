@@ -2,11 +2,14 @@ package goad
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +17,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 	"github.com/goadapp/goad/infrastructure"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
@@ -32,6 +38,7 @@ type TestConfig struct {
 	Headers     []string
 	Output      string
 	Settings    string
+	RunDocker   bool
 }
 
 type invokeArgs struct {
@@ -128,18 +135,93 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 
 		config := aws.NewConfig().WithRegion(region)
-		go t.invokeLambda(config, invokeargs)
+
+		if t.Config.RunDocker {
+			go runAsDockerContainer(config, invokeargs)
+		} else {
+			go invokeLambda(config, invokeargs)
+		}
 	}
 }
 
-func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
-	svc := lambda.New(session.New(), awsConfig)
+func handleErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 
-	j, _ := json.Marshal(args)
+func PullDockerImage() {
+	ctx := context.Background()
+	cli, err := client.NewEnvClient()
+	handleErr(err)
+
+	// Pull the latest lambci/lambda image from dockerhub.
+	out, err := cli.ImagePull(ctx, "lambci/lambda", types.ImagePullOptions{})
+	handleErr(err)
+	defer out.Close()
+	io.Copy(os.Stdout, out)
+}
+
+func runAsDockerContainer(config *aws.Config, args invokeArgs) {
+	ctx := context.Background()
+	cli, err := client.NewEnvClient()
+	handleErr(err)
+
+	session := session.New()
+	conf := session.ClientConfig("lambda", config)
+	credValue, err := conf.Config.Credentials.Get()
+	handleErr(err)
+
+	accessKeyID := fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValue.AccessKeyID)
+	secretAccessKey := fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValue.SecretAccessKey)
+	sessionToken := fmt.Sprintf("AWS_SESSION_TOKEN=%s", credValue.SessionToken)
+
+	// Create container to execute lambda
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image: "lambci/lambda",
+		Cmd:   append([]string{"index.handler"}, toJSONString(args)),
+		Volumes: map[string]struct{}{
+			"/var/task": struct{}{},
+		},
+		Env: []string{accessKeyID, secretAccessKey, sessionToken},
+	}, &container.HostConfig{
+		AutoRemove: true,
+		Binds:      []string{os.ExpandEnv("${PWD}/data/lambda:/var/task:ro")},
+	}, nil, "")
+	handleErr(err)
+
+	// run container
+	err = cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
+	handleErr(err)
+
+	// log container output
+	// out, err = cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{
+	// 	Follow:     true,
+	// 	ShowStderr: true,
+	// 	ShowStdout: true,
+	// })
+	// handleErr(err)
+	// defer out.Close()
+	// io.Copy(os.Stdout, out)
+}
+
+func toJSONString(args interface{}) string {
+	b, err := json.Marshal(args)
+	handleErr(err)
+	return string(b[:])
+}
+func toJSONReadSeeker(args interface{}) io.ReadSeeker {
+	j, err := json.Marshal(args)
+	handleErr(err)
+	return bytes.NewReader(j)
+}
+
+func invokeLambda(awsConfig *aws.Config, args invokeArgs) {
+	svc := lambda.New(session.New(), awsConfig)
 
 	svc.InvokeAsync(&lambda.InvokeAsyncInput{
 		FunctionName: aws.String("goad:" + version.LambdaVersion()),
-		InvokeArgs:   bytes.NewReader(j),
+		InvokeArgs:   toJSONReadSeeker(args),
 	})
 }
 
