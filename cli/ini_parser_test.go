@@ -1,21 +1,28 @@
 package cli
 
 import (
-	"os"
+	"bytes"
+	"io"
+	"io/ioutil"
 	"sort"
 	"testing"
 
+	"github.com/goadapp/goad/goad"
 	"github.com/stretchr/testify/assert"
 )
+
+const testDataFile = "testdata/test-config.ini"
 
 var expectedRegions = []string{"us-east-1", "eu-west-1"}
 var expectedHeader = []string{"cache-control: no-cache", "auth-token: YOUR-SECRET-AUTH-TOKEN", "base64-header: dGV4dG8gZGUgcHJ1ZWJhIA=="}
 
 func TestLoadStandardConfig(t *testing.T) {
+	config := parseSettings(testDataFile)
+	assertConfigContent(config, t)
+}
+
+func assertConfigContent(config *goad.TestConfig, t *testing.T) {
 	assert := assert.New(t)
-	delete := createTemporaryConfigFile()
-	defer delete()
-	config := parseSettingsFile("goad.ini")
 	assert.Equal("http://file-config.com/", config.URL, "Should load the URL")
 	assert.Equal("GET", config.Method, "Should load the request method")
 	assert.Equal("Hello world", config.Body, "Should load the request body")
@@ -30,10 +37,23 @@ func TestLoadStandardConfig(t *testing.T) {
 	assert.Equal(expectedHeader, config.Headers, "Should load the output file")
 }
 
-func createTemporaryConfigFile() func() {
-	file := "goad.ini"
-	os.Link("testdata/test-config.ini", file)
-	return func() {
-		os.Remove(file)
+func TestSaveConfig(t *testing.T) {
+	writer := bytes.NewBuffer(make([]byte, 0))
+	writeConfigStream(writer)
+	assertMatchTemplate(t, writer)
+}
+
+func assertMatchTemplate(t *testing.T, reader io.Reader) {
+	assert := assert.New(t)
+	expected := Must(ioutil.ReadFile("testdata/default.ini"))
+	actual := Must(ioutil.ReadAll(reader))
+	assert.Equal(len(expected), len(actual), "should be the same amount of bytes")
+	assert.Equal(expected, actual, "Should exactly be that template")
+}
+
+func Must(value []byte, err error) []byte {
+	if err != nil {
+		panic(1)
 	}
+	return value
 }

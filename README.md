@@ -82,6 +82,8 @@ Flags:
       --output-json=OUTPUT-JSON  Optional path to file for JSON result storage
   -m, --method="GET"             HTTP method
       --body=BODY                HTTP request body
+      --create-ini-template      create sample configuration file "goad.ini"
+                                 in current working directory
   -V, --version                  Show application version.
 
 Args:

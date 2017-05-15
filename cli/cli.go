@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -24,33 +26,51 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-var (
-	app             = kingpin.New("goad", "An AWS Lambda powered load testing tool")
-	urlArg          = app.Arg("url", "[http[s]://]hostname[:port]/path optional if defined in goad.ini")
-	url             = urlArg.String()
-	requestsFlag    = app.Flag("requests", "Number of requests to perform. Set to 0 in combination with a specified timelimit allows for unlimited requests for the specified time.").Short('n').Default("1000")
-	requests        = requestsFlag.Int()
-	concurrencyFlag = app.Flag("concurrency", "Number of multiple requests to make at a time").Short('c').Default("10")
-	concurrency     = concurrencyFlag.Int()
-	timelimitFlag   = app.Flag("timelimit", "Seconds to max. to spend on benchmarking").Short('t').Default("3600")
-	timelimit       = timelimitFlag.Int()
-	timeoutFlag     = app.Flag("timeout", "Seconds to max. wait for each response").Short('s').Default("15")
-	timeout         = timeoutFlag.Int()
-	headersFlag     = app.Flag("header", "Add Arbitrary header line, eg. 'Accept-Encoding: gzip' (repeatable)").Short('H')
-	headers         = headersFlag.Strings()
-	regionsFlag     = app.Flag("region", "AWS regions to run in. Repeat flag to run in more then one region. (repeatable)")
-	regions         = regionsFlag.Strings()
-	outputFileFlag  = app.Flag("output-json", "Optional path to file for JSON result storage")
-	outputFile      = outputFileFlag.String()
-	methodFlag      = app.Flag("method", "HTTP method").Short('m').Default("GET")
-	method          = methodFlag.String()
-	bodyFlag        = app.Flag("body", "HTTP request body")
-	body            = bodyFlag.String()
+const (
+	iniFile        = "goad.ini"
+	coldef         = termbox.ColorDefault
+	nano           = 1000000000
+	general        = "general"
+	urlKey         = "url"
+	methodKey      = "method"
+	bodyKey        = "body"
+	concurrencyKey = "concurrency"
+	requestsKey    = "requests"
+	timelimitKey   = "timelimit"
+	timeoutKey     = "timeout"
+	jsonOutputKey  = "json-output"
+	headerKey      = "header"
+	regionKey      = "region"
+	writeIniKey    = "create-ini-template"
 )
 
-const coldef = termbox.ColorDefault
-const nano = 1000000000
+var (
+	app             = kingpin.New("goad", "An AWS Lambda powered load testing tool")
+	urlArg          = app.Arg(urlKey, "[http[s]://]hostname[:port]/path optional if defined in goad.ini")
+	url             = urlArg.String()
+	requestsFlag    = app.Flag(requestsKey, "Number of requests to perform. Set to 0 in combination with a specified timelimit allows for unlimited requests for the specified time.").Short('n').Default("1000")
+	requests        = requestsFlag.Int()
+	concurrencyFlag = app.Flag(concurrencyKey, "Number of multiple requests to make at a time").Short('c').Default("10")
+	concurrency     = concurrencyFlag.Int()
+	timelimitFlag   = app.Flag(timelimitKey, "Seconds to max. to spend on benchmarking").Short('t').Default("3600")
+	timelimit       = timelimitFlag.Int()
+	timeoutFlag     = app.Flag(timeoutKey, "Seconds to max. wait for each response").Short('s').Default("15")
+	timeout         = timeoutFlag.Int()
+	headersFlag     = app.Flag(headerKey, "Add Arbitrary header line, eg. 'Accept-Encoding: gzip' (repeatable)").Short('H')
+	headers         = headersFlag.Strings()
+	regionsFlag     = app.Flag(regionKey, "AWS regions to run in. Repeat flag to run in more then one region. (repeatable)")
+	regions         = regionsFlag.Strings()
+	outputFileFlag  = app.Flag(jsonOutputKey, "Optional path to file for JSON result storage")
+	outputFile      = outputFileFlag.String()
+	methodFlag      = app.Flag(methodKey, "HTTP method").Short('m').Default("GET")
+	method          = methodFlag.String()
+	bodyFlag        = app.Flag(bodyKey, "HTTP request body")
+	body            = bodyFlag.String()
+	writeIniFlag    = app.Flag(writeIniKey, "create sample configuration file \""+iniFile+"\" in current working directory")
+	writeIni        = writeIniFlag.Bool()
+)
 
+// Run the goad cli
 func Run() {
 	app.HelpFlag.Short('h')
 	app.Version(version.String())
@@ -72,8 +92,19 @@ func Run() {
 	start(test, &finalResult, sigChan)
 }
 
+func writeIniFile() {
+	stream := bytes.NewBuffer(make([]byte, 0))
+	writeConfigStream(stream)
+	ioutil.WriteFile(iniFile, stream.Bytes(), 0644)
+}
+
+func writeConfigStream(writer io.Writer) {
+	stream := bytes.NewBufferString(template)
+	stream.WriteTo(writer)
+}
+
 func aggregateConfiguration() *goad.TestConfig {
-	config := parseSettingsFile("goad.ini")
+	config := parseSettings(iniFile)
 	applyDefaultsFromConfig(config)
 	return parseCommandline()
 }
@@ -88,9 +119,7 @@ func applyDefaultsFromConfig(config *goad.TestConfig) {
 	applyDefaultIfNotZero(requestsFlag, prepareInt(config.Requests))
 	applyDefaultIfNotZero(timelimitFlag, prepareInt(config.Timelimit))
 	applyDefaultIfNotZero(timeoutFlag, prepareInt(config.Timeout))
-	if config.URL == "" {
-		urlArg.Required()
-	} else {
+	if config.URL != "" {
 		urlArg.Default(config.URL)
 	}
 	if len(config.Regions) == 0 {
@@ -147,31 +176,30 @@ func isZero(v reflect.Value) bool {
 	return v.Interface() == z.Interface()
 }
 
-func parseSettingsFile(file string) *goad.TestConfig {
+func parseSettings(source interface{}) *goad.TestConfig {
 	config := &goad.TestConfig{}
-	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, "goad.ini")
+	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, source)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Println(err.Error())
 		}
 		return config
 	}
-	generalSection := cfg.Section("general")
-	config.URL = generalSection.Key("url").String()
-	config.Method = generalSection.Key("method").String()
-	config.Body = generalSection.Key("body").String()
-	config.Concurrency, _ = generalSection.Key("concurrency").Int()
-	config.Requests, _ = generalSection.Key("requests").Int()
-	config.Timelimit, _ = generalSection.Key("timelimit").Int()
-	config.Timeout, _ = generalSection.Key("timeout").Int()
-	config.Output = generalSection.Key("json-output").String()
-
 	regionsSection := cfg.Section("regions")
 	config.Regions = regionsSection.KeyStrings()
 
 	headersSection := cfg.Section("headers")
 	headerHash := headersSection.KeysHash()
 	config.Headers = foldHeaders(headerHash)
+	generalSection := cfg.Section(general)
+	config.URL = generalSection.Key(urlKey).String()
+	config.Method = generalSection.Key(methodKey).String()
+	config.Body = generalSection.Key(bodyKey).String()
+	config.Concurrency, _ = generalSection.Key(concurrencyKey).Int()
+	config.Requests, _ = generalSection.Key(requestsKey).Int()
+	config.Timelimit, _ = generalSection.Key(timelimitKey).Int()
+	config.Timeout, _ = generalSection.Key(timeoutKey).Int()
+	config.Output = generalSection.Key(jsonOutputKey).String()
 	return config
 }
 
@@ -186,9 +214,15 @@ func foldHeaders(hash map[string]string) []string {
 func parseCommandline() *goad.TestConfig {
 	args := os.Args[1:]
 
-	_, err := app.Parse(args)
-	if err != nil {
-		fmt.Println(err.Error())
+	app.Parse(args)
+	if *writeIni {
+		writeIniFile()
+		fmt.Printf("Sample configuration written to: %s\n", iniFile)
+		os.Exit(0)
+	}
+
+	if *url == "" {
+		fmt.Println("No URL provided")
 		app.Usage(args)
 		os.Exit(1)
 	}
