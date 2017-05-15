@@ -8,11 +8,13 @@ go:
   - 1.8
 
 install:
+  - sudo apt install alien
   - go get github.com/jteeuwen/go-bindata/...
 
 script:
   - make test
   - make all-zip
+  - make linux-packages
 
 deploy:
   provider: releases
@@ -24,6 +26,10 @@ deploy:
     - build/zip/goad-osx-x86-64.zip
     - build/zip/goad-windows-x86-64.zip
     - build/zip/goad-windows-x86.zip
+    - build/goad_amd64.deb
+    - build/goad_i386.deb
+    - build/goad.x86_64.rpm
+    - build/goad.i386.rpm
   skip_cleanup: true
   on:
     tags: true
