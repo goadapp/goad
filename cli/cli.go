@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -271,22 +272,23 @@ func createGoadTest(config *goad.TestConfig) *goad.Test {
 
 func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
 	if test.Config.RunDocker {
-		goad.PullDockerImage()
+		goad.DockerPullLambdaImage()
+		goad.DockerPullRabbitMQImage()
 	}
 
 	err := termbox.Init()
 	if err != nil {
-		panic(err)
+		log.Println(err)
+	} else {
+		defer termbox.Close()
+		termbox.Sync()
+		renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
+		renderLogo()
+		termbox.Flush()
 	}
 
-	defer test.Clean()
-	defer termbox.Close()
-	termbox.Sync()
-	renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
-	renderLogo()
-	termbox.Flush()
-
-	resultChan := test.Start()
+	resultChan, teardown := test.Start()
+	defer teardown()
 
 	_, h := termbox.Size()
 	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 	"github.com/goadapp/goad/queue"
 	"github.com/goadapp/goad/version"
+	"github.com/streadway/amqp"
 )
 
 var (
@@ -237,8 +239,67 @@ func (l *goadLambda) setupAwsConfig() *aws.Config {
 	return aws.NewConfig().WithRegion(l.Settings.QueueRegion)
 }
 
+func failOnError(err error, msg string) {
+	if err != nil {
+		log.Fatalf("%s: %s", msg, err)
+		panic(fmt.Sprintf("%s: %s", msg, err))
+	}
+}
+
 func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
-	l.resultSender = queue.NewSQSAdapter(config, l.Settings.SqsURL)
+	rabbit := os.ExpandEnv("$RABBITMQ")
+	if rabbit != "" {
+		l.resultSender = newRabbitMQAdapter(rabbit)
+	} else {
+		l.resultSender = queue.NewSQSAdapter(config, l.Settings.SqsURL)
+	}
+}
+
+// RabbitMQAdapter to connect to RabbitMQ on docker daemon
+type rabbitMQAdapter struct {
+	resultSender
+	ch   *amqp.Channel
+	q    amqp.Queue
+	conn *amqp.Connection
+}
+
+func (r *rabbitMQAdapter) SendResult(data queue.AggData) {
+	body, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	err = r.ch.Publish(
+		"",       // exchange
+		r.q.Name, // routing key
+		false,    // mandatory
+		false,    // immediate
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        []byte(body),
+		})
+	log.Printf(" [x] Sent %s", body)
+	failOnError(err, "Failed to publish a message")
+}
+
+func newRabbitMQAdapter(queueURL string) resultSender {
+	conn, err := amqp.Dial(queueURL)
+	failOnError(err, "Failed to connect to RabbitMQ")
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	q, err := ch.QueueDeclare(
+		"goad", // name
+		false,  // durable
+		false,  // delete when unused
+		false,  // exclusive
+		false,  // no-wait
+		nil,    // arguments
+	)
+	failOnError(err, "Failed to declare a queue")
+	return &rabbitMQAdapter{
+		ch:   ch,
+		q:    q,
+		conn: conn,
+	}
 }
 
 func (l *goadLambda) setupJobQueue(count int) {

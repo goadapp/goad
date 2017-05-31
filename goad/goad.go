@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"strconv"
@@ -19,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/goadapp/goad/infrastructure"
 	"github.com/goadapp/goad/queue"
@@ -62,7 +62,7 @@ var supportedRegions = []string{
 // Test type
 type Test struct {
 	Config  *TestConfig
-	infra   *infrastructure.Infrastructure
+	infra   infrastructure.Infrastructure
 	lambdas int
 }
 
@@ -76,31 +76,32 @@ func NewTest(config *TestConfig) (*Test, error) {
 }
 
 // Start a test
-func (t *Test) Start() <-chan queue.RegionsAggData {
+func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	awsConfig := aws.NewConfig().WithRegion(t.Config.Regions[0])
 
-	infra, err := infrastructure.New(t.Config.Regions, awsConfig)
-	if err != nil {
-		log.Fatal(err)
+	if t.Config.RunDocker {
+		t.infra = infrastructure.NewDockerInfrastructure()
+	} else {
+		t.infra = infrastructure.New(t.Config.Regions, awsConfig)
 	}
-
-	t.infra = infra
+	teardown, err := t.infra.Setup()
+	handleErr(err)
 	t.lambdas = numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
-	t.invokeLambdas(awsConfig, infra.QueueURL())
+	t.invokeLambdas(awsConfig, t.infra.GetQueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
 	go func() {
-		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.Requests, t.lambdas) {
+		for result := range queue.Aggregate(awsConfig, t.infra.GetQueueURL(), t.Config.Requests, t.lambdas) {
 			results <- result
 		}
 		close(results)
 	}()
 
-	return results
+	return results, teardown
 }
 
-func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
+func (t *Test) invokeLambdas(awsConfig *aws.Config, queueURL string) {
 	for i := 0; i < t.lambdas; i++ {
 		region := t.Config.Regions[i%len(t.Config.Regions)]
 		requests, requestsRemainder := divide(t.Config.Requests, t.lambdas)
@@ -116,7 +117,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			fmt.Sprintf("--concurrency=%s", strconv.Itoa(int(concurrency))),
 			fmt.Sprintf("--requests=%s", strconv.Itoa(int(requests))),
 			fmt.Sprintf("--execution-time=%s", strconv.Itoa(int(execTimeout))),
-			fmt.Sprintf("--sqsurl=%s", sqsURL),
+			fmt.Sprintf("--sqsurl=%s", queueURL),
 			fmt.Sprintf("--queue-region=%s", c.Regions[0]),
 			fmt.Sprintf("--client-timeout=%s", time.Duration(c.Timeout)*time.Second),
 			fmt.Sprintf("--frequency=%s", reportingFrequency(t.lambdas).String()),
@@ -137,7 +138,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		config := aws.NewConfig().WithRegion(region)
 
 		if t.Config.RunDocker {
-			go runAsDockerContainer(config, invokeargs)
+			go runAsDockerContainer(queueURL, invokeargs)
 		} else {
 			go invokeLambda(config, invokeargs)
 		}
@@ -150,62 +151,56 @@ func handleErr(err error) {
 	}
 }
 
-func PullDockerImage() {
+func DockerPullLambdaImage() {
+	DockerPullImage("lambci/lambda")
+}
+
+func DockerPullRabbitMQImage() {
+	DockerPullImage("rabbitmq:3")
+}
+
+func DockerPullImage(imageName string) {
 	ctx := context.Background()
 	cli, err := client.NewEnvClient()
 	handleErr(err)
 
-	// Pull the latest lambci/lambda image from dockerhub.
-	out, err := cli.ImagePull(ctx, "lambci/lambda", types.ImagePullOptions{})
+	// Pull the image from dockerhub.
+	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 	handleErr(err)
 	defer out.Close()
 	io.Copy(os.Stdout, out)
 }
 
-func runAsDockerContainer(config *aws.Config, args invokeArgs) {
+func runAsDockerContainer(queueURL string, args invokeArgs) {
 	ctx := context.Background()
 	cli, err := client.NewEnvClient()
 	handleErr(err)
-
-	session := session.New()
-	conf := session.ClientConfig("lambda", config)
-	credValue, err := conf.Config.Credentials.Get()
-	handleErr(err)
-
-	accessKeyID := fmt.Sprintf("AWS_ACCESS_KEY_ID=%s", credValue.AccessKeyID)
-	secretAccessKey := fmt.Sprintf("AWS_SECRET_ACCESS_KEY=%s", credValue.SecretAccessKey)
-	sessionToken := fmt.Sprintf("AWS_SESSION_TOKEN=%s", credValue.SessionToken)
+	rabbitmqURL := fmt.Sprintf("RABBITMQ=%s", queueURL)
 
 	// Create container to execute lambda
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: "lambci/lambda",
-		Cmd:   append([]string{"index.handler"}, toJSONString(args)),
+		Cmd:   append([]string{"index.handler"}, ToJSONString(args)),
 		Volumes: map[string]struct{}{
 			"/var/task": struct{}{},
 		},
-		Env: []string{accessKeyID, secretAccessKey, sessionToken},
+		Env: []string{rabbitmqURL},
 	}, &container.HostConfig{
 		AutoRemove: true,
 		Binds:      []string{os.ExpandEnv("${PWD}/data/lambda:/var/task:ro")},
-	}, nil, "")
+	}, &network.NetworkingConfig{
+		EndpointsConfig: map[string]*network.EndpointSettings{
+			"goad-bridge": &network.EndpointSettings{},
+		},
+	}, "")
 	handleErr(err)
 
 	// run container
 	err = cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
 	handleErr(err)
-
-	// log container output
-	// out, err = cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{
-	// 	Follow:     true,
-	// 	ShowStderr: true,
-	// 	ShowStdout: true,
-	// })
-	// handleErr(err)
-	// defer out.Close()
-	// io.Copy(os.Stdout, out)
 }
 
-func toJSONString(args interface{}) string {
+func ToJSONString(args interface{}) string {
 	b, err := json.Marshal(args)
 	handleErr(err)
 	return string(b[:])
@@ -282,10 +277,4 @@ func (c TestConfig) check() error {
 		}
 	}
 	return nil
-}
-
-func (t *Test) Clean() {
-	if t.infra != nil {
-		t.infra.Clean()
-	}
 }
