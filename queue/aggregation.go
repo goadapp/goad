@@ -101,7 +101,7 @@ func SumRegionResults(regionData *RegionsAggData) *AggData {
 func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) chan RegionsAggData {
 	results := make(chan RegionsAggData)
 	if strings.Contains(queueURL, "amqp://") {
-		go aggregateFromRabbitMQ(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
+		go aggregateFromRabbitMQ(results, queueURL, totalExpectedRequests, lambdasByRegion)
 	} else {
 		go aggregateFromSqs(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
 	}
@@ -144,7 +144,7 @@ func aggregateFromSqs(results chan RegionsAggData, awsConfig *aws.Config, queueU
 	}
 }
 
-func aggregateFromRabbitMQ(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
+func aggregateFromRabbitMQ(results chan RegionsAggData, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
 	defer close(results)
 	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
 

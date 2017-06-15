@@ -45,7 +45,7 @@ lambda:
 
 bindata: lambda
 	@go get github.com/jteeuwen/go-bindata/...
-	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
+	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg awsinfra -o infrastructure/aws/bindata.go data/lambda.zip
 
 linux64: bindata
 	@GOOS=linux GOARCH=amd64 $(GO-BUILD) -o build/linux/x86-64/$(TARGET)

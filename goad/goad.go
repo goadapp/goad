@@ -1,28 +1,18 @@
 package goad
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/client"
 	"github.com/goadapp/goad/infrastructure"
+	"github.com/goadapp/goad/infrastructure/aws"
+	"github.com/goadapp/goad/infrastructure/docker"
 	"github.com/goadapp/goad/queue"
-	"github.com/goadapp/goad/version"
 )
 
 // TestConfig type
@@ -39,11 +29,6 @@ type TestConfig struct {
 	Output      string
 	Settings    string
 	RunDocker   bool
-}
-
-type invokeArgs struct {
-	File string   `json:"file"`
-	Args []string `json:"args"`
 }
 
 const nano = 1000000000
@@ -80,9 +65,9 @@ func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	awsConfig := aws.NewConfig().WithRegion(t.Config.Regions[0])
 
 	if t.Config.RunDocker {
-		t.infra = infrastructure.NewDockerInfrastructure()
+		t.infra = dockerinfra.NewDockerInfrastructure()
 	} else {
-		t.infra = infrastructure.New(t.Config.Regions, awsConfig)
+		t.infra = awsinfra.New(t.Config.Regions, awsConfig)
 	}
 	teardown, err := t.infra.Setup()
 	handleErr(err)
@@ -130,18 +115,12 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, queueURL string) {
 		}
 		args = append(args, fmt.Sprintf("%s", c.URL))
 
-		invokeargs := invokeArgs{
+		invokeargs := infrastructure.InvokeArgs{
 			File: "./goad-lambda",
 			Args: args,
 		}
 
-		config := aws.NewConfig().WithRegion(region)
-
-		if t.Config.RunDocker {
-			go runAsDockerContainer(queueURL, invokeargs)
-		} else {
-			go invokeLambda(config, invokeargs)
-		}
+		go t.infra.Run(invokeargs)
 	}
 }
 
@@ -149,75 +128,6 @@ func handleErr(err error) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func DockerPullLambdaImage() {
-	DockerPullImage("lambci/lambda")
-}
-
-func DockerPullRabbitMQImage() {
-	DockerPullImage("rabbitmq:3")
-}
-
-func DockerPullImage(imageName string) {
-	ctx := context.Background()
-	cli, err := client.NewEnvClient()
-	handleErr(err)
-
-	// Pull the image from dockerhub.
-	out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
-	handleErr(err)
-	defer out.Close()
-	io.Copy(os.Stdout, out)
-}
-
-func runAsDockerContainer(queueURL string, args invokeArgs) {
-	ctx := context.Background()
-	cli, err := client.NewEnvClient()
-	handleErr(err)
-	rabbitmqURL := fmt.Sprintf("RABBITMQ=%s", queueURL)
-
-	// Create container to execute lambda
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: "lambci/lambda",
-		Cmd:   append([]string{"index.handler"}, ToJSONString(args)),
-		Volumes: map[string]struct{}{
-			"/var/task": struct{}{},
-		},
-		Env: []string{rabbitmqURL},
-	}, &container.HostConfig{
-		AutoRemove: true,
-		Binds:      []string{os.ExpandEnv("${PWD}/data/lambda:/var/task:ro")},
-	}, &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{
-			"goad-bridge": &network.EndpointSettings{},
-		},
-	}, "")
-	handleErr(err)
-
-	// run container
-	err = cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{})
-	handleErr(err)
-}
-
-func ToJSONString(args interface{}) string {
-	b, err := json.Marshal(args)
-	handleErr(err)
-	return string(b[:])
-}
-func toJSONReadSeeker(args interface{}) io.ReadSeeker {
-	j, err := json.Marshal(args)
-	handleErr(err)
-	return bytes.NewReader(j)
-}
-
-func invokeLambda(awsConfig *aws.Config, args invokeArgs) {
-	svc := lambda.New(session.New(), awsConfig)
-
-	svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad:" + version.LambdaVersion()),
-		InvokeArgs:   toJSONReadSeeker(args),
-	})
 }
 
 func numberOfLambdas(concurrency int, numRegions int) int {

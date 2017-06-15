@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -271,24 +270,21 @@ func createGoadTest(config *goad.TestConfig) *goad.Test {
 }
 
 func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
-	if test.Config.RunDocker {
-		goad.DockerPullLambdaImage()
-		goad.DockerPullRabbitMQImage()
-	}
-
-	err := termbox.Init()
-	if err != nil {
-		log.Println(err)
-	} else {
-		defer termbox.Close()
-		termbox.Sync()
-		renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
-		renderLogo()
-		termbox.Flush()
-	}
-
 	resultChan, teardown := test.Start()
 	defer teardown()
+
+	platform := "AWS"
+	if test.Config.RunDocker {
+		platform = "Docker"
+	}
+	launchingOn := fmt.Sprintf("Launching on %s... (be patient)", platform)
+
+	termbox.Init()
+	defer termbox.Close()
+	termbox.Sync()
+	renderString(0, 0, launchingOn, coldef, coldef)
+	renderLogo()
+	termbox.Flush()
 
 	_, h := termbox.Size()
 	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
@@ -367,8 +363,10 @@ func renderLogo() {
 
 // Also clears loading message
 func clearLogo() {
-	for i := 0; i < 8; i++ {
-		renderString(0, i, "                                ", coldef, coldef)
+	w, h := termbox.Size()
+	clearStr := strings.Repeat(" ", w)
+	for i := 0; i < h-1; i++ {
+		renderString(0, i, clearStr, coldef, coldef)
 	}
 }
 
