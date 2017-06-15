@@ -11,7 +11,7 @@ Goad allows you to load test your websites from all over the world whilst costin
 
 You can run Goad from your machine using your own AWS credentials. Goad will automatically create the AWS resources you need and execute your test, and display the results broken down by region. This way, you can see how fast your website is from the major regions of the world.
 
-If you just want to try Goad out, visit the [Goad.io website](https://goad.io) and enter the address of the site you want to test.
+For more information, visit the [Goad.io website](https://goad.io).
 
 ![goad CLI interface](https://goad.io/assets/cli.gif)
 
