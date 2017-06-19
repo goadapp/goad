@@ -122,12 +122,12 @@ all-zip: all
 rpm32: deb32
 	@pushd build && \
 	sudo alien --to-rpm -k goad_i386.deb && \
-	mv goad-$(VERSION)-1.i386.rpm goad.i386.rpm
+	mv goad-$(VERSION).i386.rpm goad.i386.rpm
 
 rpm64: deb64
 	@pushd build && \
 	sudo alien --to-rpm -k goad_amd64.deb && \
-	mv goad-$(VERSION)-1.x86_64.rpm goad.x86_64.rpm
+	mv goad-$(VERSION).x86_64.rpm goad.x86_64.rpm
 
 rpm: rpm32 rpm64
 
