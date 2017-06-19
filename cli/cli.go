@@ -42,6 +42,7 @@ const (
 	headerKey      = "header"
 	regionKey      = "region"
 	writeIniKey    = "create-ini-template"
+	runDockerKey   = "run-docker"
 )
 
 var (
@@ -68,6 +69,8 @@ var (
 	body            = bodyFlag.String()
 	writeIniFlag    = app.Flag(writeIniKey, "create sample configuration file \""+iniFile+"\" in current working directory")
 	writeIni        = writeIniFlag.Bool()
+	runDockerFlag   = app.Flag(runDockerKey, "execute in docker container instead of aws lambda")
+	runDocker       = runDockerFlag.Bool()
 )
 
 // Run the goad cli
@@ -124,6 +127,9 @@ func applyDefaultsFromConfig(config *goad.TestConfig) {
 	}
 	if len(config.Regions) == 0 {
 		regionsFlag.Default("us-east-1", "eu-west-1", "ap-northeast-1")
+	}
+	if config.RunDocker {
+		runDockerFlag.Default("true")
 	}
 }
 
@@ -191,6 +197,7 @@ func parseSettings(source interface{}) *goad.TestConfig {
 	headersSection := cfg.Section("headers")
 	headerHash := headersSection.KeysHash()
 	config.Headers = foldHeaders(headerHash)
+
 	generalSection := cfg.Section(general)
 	config.URL = generalSection.Key(urlKey).String()
 	config.Method = generalSection.Key(methodKey).String()
@@ -200,6 +207,7 @@ func parseSettings(source interface{}) *goad.TestConfig {
 	config.Timelimit, _ = generalSection.Key(timelimitKey).Int()
 	config.Timeout, _ = generalSection.Key(timeoutKey).Int()
 	config.Output = generalSection.Key(jsonOutputKey).String()
+	config.RunDocker, _ = generalSection.Key(runDockerKey).Bool()
 	return config
 }
 
@@ -214,7 +222,7 @@ func foldHeaders(hash map[string]string) []string {
 func parseCommandline() *goad.TestConfig {
 	args := os.Args[1:]
 
-	app.Parse(args)
+	kingpin.MustParse(app.Parse(args))
 	if *writeIni {
 		writeIniFile()
 		fmt.Printf("Sample configuration written to: %s\n", iniFile)
@@ -240,6 +248,7 @@ func parseCommandline() *goad.TestConfig {
 	config.Body = *body
 	config.Headers = *headers
 	config.Output = *outputFile
+	config.RunDocker = *runDocker
 	return config
 }
 
@@ -261,19 +270,21 @@ func createGoadTest(config *goad.TestConfig) *goad.Test {
 }
 
 func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
-	err := termbox.Init()
-	if err != nil {
-		panic(err)
-	}
+	resultChan, teardown := test.Start()
+	defer teardown()
 
-	defer test.Clean()
+	platform := "AWS"
+	if test.Config.RunDocker {
+		platform = "Docker"
+	}
+	launchingOn := fmt.Sprintf("Launching on %s... (be patient)", platform)
+
+	termbox.Init()
 	defer termbox.Close()
 	termbox.Sync()
-	renderString(0, 0, "Launching on AWS... (be patient)", coldef, coldef)
+	renderString(0, 0, launchingOn, coldef, coldef)
 	renderLogo()
 	termbox.Flush()
-
-	resultChan := test.Start()
 
 	_, h := termbox.Size()
 	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
@@ -352,8 +363,10 @@ func renderLogo() {
 
 // Also clears loading message
 func clearLogo() {
-	for i := 0; i < 8; i++ {
-		renderString(0, i, "                                ", coldef, coldef)
+	w, h := termbox.Size()
+	clearStr := strings.Repeat(" ", w)
+	for i := 0; i < h-1; i++ {
+		renderString(0, i, clearStr, coldef, coldef)
 	}
 }
 

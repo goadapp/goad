@@ -1,9 +1,13 @@
 package queue
 
 import (
+	"encoding/json"
+	"log"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/streadway/amqp"
 )
 
 // AggData type
@@ -96,11 +100,21 @@ func SumRegionResults(regionData *RegionsAggData) *AggData {
 // Aggregate listens for results and sends totals, closing the channel when done
 func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) chan RegionsAggData {
 	results := make(chan RegionsAggData)
-	go aggregate(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
+	if strings.Contains(queueURL, "amqp://") {
+		go aggregateFromRabbitMQ(results, queueURL, totalExpectedRequests, lambdasByRegion)
+	} else {
+		go aggregateFromSqs(results, awsConfig, queueURL, totalExpectedRequests, lambdasByRegion)
+	}
 	return results
 }
 
-func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
+func failOnError(err error, msg string) {
+	if err != nil {
+		log.Fatalf("%s: %s", msg, err)
+	}
+}
+
+func aggregateFromSqs(results chan RegionsAggData, awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
 	defer close(results)
 	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
 
@@ -126,6 +140,60 @@ func aggregate(results chan RegionsAggData, awsConfig *aws.Config, queueURL stri
 			if waited.Seconds() > 20 {
 				break
 			}
+		}
+	}
+}
+
+func aggregateFromRabbitMQ(results chan RegionsAggData, queueURL string, totalExpectedRequests int, lambdasByRegion int) {
+	defer close(results)
+	data := RegionsAggData{make(map[string]AggData), totalExpectedRequests, lambdasByRegion}
+
+	// log.Printf("trying to connecto to: %s", queueURL)
+	conn, err := amqp.Dial(queueURL)
+	failOnError(err, "Failed to connect to RabbitMQ")
+	defer conn.Close()
+
+	ch, err := conn.Channel()
+	failOnError(err, "Failed to open a channel")
+	defer ch.Close()
+
+	q, err := ch.QueueDeclare(
+		"goad", // name
+		false,  // durable
+		false,  // delete when unused
+		false,  // exclusive
+		false,  // no-wait
+		nil,    // arguments
+	)
+	failOnError(err, "Failed to declare a queue")
+
+	msgs, err := ch.Consume(
+		q.Name, // queue
+		"cli",  // consumer
+		true,   // auto-ack
+		false,  // exclusive
+		false,  // no-local
+		false,  // no-wait
+		nil,    // args
+	)
+	failOnError(err, "Failed to register a consumer")
+	// timeoutStart := time.Now()
+	for {
+		select {
+		case msg := <-msgs:
+			result := &AggData{}
+			json.Unmarshal(msg.Body, result)
+			regionData, ok := data.Regions[result.Region]
+			if !ok {
+				regionData.Statuses = make(map[string]int)
+				regionData.Region = result.Region
+			}
+			addResult(&regionData, result, false)
+			data.Regions[result.Region] = regionData
+			results <- data
+		}
+		if data.allRequestsReceived() {
+			break
 		}
 	}
 }

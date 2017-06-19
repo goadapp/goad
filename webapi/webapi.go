@@ -105,7 +105,8 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	resultChan := test.Start()
+	resultChan, teardown := test.Start()
+	defer teardown()
 
 	for result := range resultChan {
 		message, jsonerr := jsonFromRegionsAggData(result)

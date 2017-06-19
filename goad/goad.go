@@ -1,22 +1,18 @@
 package goad
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/goadapp/goad/infrastructure"
+	"github.com/goadapp/goad/infrastructure/aws"
+	"github.com/goadapp/goad/infrastructure/docker"
 	"github.com/goadapp/goad/queue"
-	"github.com/goadapp/goad/version"
 )
 
 // TestConfig type
@@ -32,11 +28,7 @@ type TestConfig struct {
 	Headers     []string
 	Output      string
 	Settings    string
-}
-
-type invokeArgs struct {
-	File string   `json:"file"`
-	Args []string `json:"args"`
+	RunDocker   bool
 }
 
 const nano = 1000000000
@@ -55,7 +47,7 @@ var supportedRegions = []string{
 // Test type
 type Test struct {
 	Config  *TestConfig
-	infra   *infrastructure.Infrastructure
+	infra   infrastructure.Infrastructure
 	lambdas int
 }
 
@@ -69,31 +61,32 @@ func NewTest(config *TestConfig) (*Test, error) {
 }
 
 // Start a test
-func (t *Test) Start() <-chan queue.RegionsAggData {
+func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	awsConfig := aws.NewConfig().WithRegion(t.Config.Regions[0])
 
-	infra, err := infrastructure.New(t.Config.Regions, awsConfig)
-	if err != nil {
-		log.Fatal(err)
+	if t.Config.RunDocker {
+		t.infra = dockerinfra.NewDockerInfrastructure()
+	} else {
+		t.infra = awsinfra.New(t.Config.Regions, awsConfig)
 	}
-
-	t.infra = infra
+	teardown, err := t.infra.Setup()
+	handleErr(err)
 	t.lambdas = numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
-	t.invokeLambdas(awsConfig, infra.QueueURL())
+	t.invokeLambdas(awsConfig, t.infra.GetQueueURL())
 
 	results := make(chan queue.RegionsAggData)
 
 	go func() {
-		for result := range queue.Aggregate(awsConfig, infra.QueueURL(), t.Config.Requests, t.lambdas) {
+		for result := range queue.Aggregate(awsConfig, t.infra.GetQueueURL(), t.Config.Requests, t.lambdas) {
 			results <- result
 		}
 		close(results)
 	}()
 
-	return results
+	return results, teardown
 }
 
-func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
+func (t *Test) invokeLambdas(awsConfig *aws.Config, queueURL string) {
 	for i := 0; i < t.lambdas; i++ {
 		region := t.Config.Regions[i%len(t.Config.Regions)]
 		requests, requestsRemainder := divide(t.Config.Requests, t.lambdas)
@@ -109,7 +102,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 			fmt.Sprintf("--concurrency=%s", strconv.Itoa(int(concurrency))),
 			fmt.Sprintf("--requests=%s", strconv.Itoa(int(requests))),
 			fmt.Sprintf("--execution-time=%s", strconv.Itoa(int(execTimeout))),
-			fmt.Sprintf("--sqsurl=%s", sqsURL),
+			fmt.Sprintf("--sqsurl=%s", queueURL),
 			fmt.Sprintf("--queue-region=%s", c.Regions[0]),
 			fmt.Sprintf("--client-timeout=%s", time.Duration(c.Timeout)*time.Second),
 			fmt.Sprintf("--frequency=%s", reportingFrequency(t.lambdas).String()),
@@ -122,25 +115,19 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, sqsURL string) {
 		}
 		args = append(args, fmt.Sprintf("%s", c.URL))
 
-		invokeargs := invokeArgs{
+		invokeargs := infrastructure.InvokeArgs{
 			File: "./goad-lambda",
 			Args: args,
 		}
 
-		config := aws.NewConfig().WithRegion(region)
-		go t.invokeLambda(config, invokeargs)
+		go t.infra.Run(invokeargs)
 	}
 }
 
-func (t *Test) invokeLambda(awsConfig *aws.Config, args invokeArgs) {
-	svc := lambda.New(session.New(), awsConfig)
-
-	j, _ := json.Marshal(args)
-
-	svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad:" + version.LambdaVersion()),
-		InvokeArgs:   bytes.NewReader(j),
-	})
+func handleErr(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
 
 func numberOfLambdas(concurrency int, numRegions int) int {
@@ -200,10 +187,4 @@ func (c TestConfig) check() error {
 		}
 	}
 	return nil
-}
-
-func (t *Test) Clean() {
-	if t.infra != nil {
-		t.infra.Clean()
-	}
 }

@@ -10,7 +10,7 @@ GOPATH := ${PWD}/vendor:${GOPATH}
 export GOPATH
 
 # These will be provided to the target
-VERSION := 1.4.1
+VERSION := 2.0.0-rc1
 BUILD := `git rev-parse HEAD`
 
 # Timestamp of last commit to allow for reproducable builds
@@ -45,7 +45,7 @@ lambda:
 
 bindata: lambda
 	@go get github.com/jteeuwen/go-bindata/...
-	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg infrastructure -o infrastructure/bindata.go data/lambda.zip
+	@go-bindata -modtime $(TIMESTAMP) -nocompress -pkg awsinfra -o infrastructure/aws/bindata.go data/lambda.zip
 
 linux64: bindata
 	@GOOS=linux GOARCH=amd64 $(GO-BUILD) -o build/linux/x86-64/$(TARGET)
