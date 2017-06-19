@@ -15,16 +15,18 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/goadapp/goad/infrastructure"
+	"github.com/spf13/afero"
 	try "gopkg.in/matryer/try.v1"
 )
 
 const (
 	rabbitPort    = "5672"
-	rabbitRetries = 45
+	rabbitRetries = 30
 )
 
 type dockerInfrastructure struct {
 	Cli                 *client.Client
+	settings            infrastructure.Settings
 	NetworkID           string
 	RabbitMQContainerID string
 	RabbitMQContainerIP string
@@ -37,10 +39,11 @@ func handleErr(err error) {
 }
 
 func NewDockerInfrastructure() infrastructure.Infrastructure {
-	infra := &dockerInfrastructure{}
 	cli, err := client.NewEnvClient()
 	handleErr(err)
-	infra.Cli = cli
+	infra := &dockerInfrastructure{
+		Cli: cli,
+	}
 	DockerPullLambdaImage()
 	DockerPullRabbitMQImage()
 	return infra
@@ -50,9 +53,11 @@ func (i *dockerInfrastructure) Run(args infrastructure.InvokeArgs) {
 	i.runAsDockerContainer(args)
 }
 
-func (i *dockerInfrastructure) Setup() (func(), error) {
+func (i *dockerInfrastructure) Setup(settings infrastructure.Settings) (func(), error) {
+	i.settings = settings
 	ctx := context.Background()
 	cli := i.Cli
+
 	list, err := cli.NetworkList(ctx, types.NetworkListOptions{})
 	for _, network := range list {
 		if network.Name == "goad-bridge" {
@@ -92,9 +97,7 @@ func (i *dockerInfrastructure) Setup() (func(), error) {
 			AutoRemove: true,
 		}, &network.NetworkingConfig{
 			EndpointsConfig: map[string]*network.EndpointSettings{
-				"goad-bridge": &network.EndpointSettings{
-				// IPAddress: i.RabbitMQContainerIP,
-				},
+				"goad-bridge": &network.EndpointSettings{},
 			},
 		}, "rabbitmq")
 		handleErr(cerr)
@@ -108,11 +111,14 @@ func (i *dockerInfrastructure) Setup() (func(), error) {
 
 		ip := i.getRabbitContainerIP()
 		i.RabbitMQContainerIP = ip
+		fmt.Print("Waiting for queue to get ready")
+		try.MaxRetries = rabbitRetries
 		err = try.Do(func(attempt int) (bool, error) {
 			conn, derr := net.Dial("tcp", fmt.Sprintf("%s:%s", ip, rabbitPort))
 			if derr != nil {
+				fmt.Print(".")
 				time.Sleep(1 * time.Second)
-				return attempt < rabbitRetries, derr
+				return true, derr
 			}
 			defer conn.Close()
 			return true, nil
@@ -147,11 +153,12 @@ func (i *dockerInfrastructure) getRabbitContainerIP() string {
 	ctx := context.Background()
 	cli := i.Cli
 	ip := ""
+	try.MaxRetries = rabbitRetries
 	err := try.Do(func(attempt int) (bool, error) {
 		data, derr := cli.ContainerInspect(ctx, i.RabbitMQContainerID)
 		if derr != nil {
 			time.Sleep(1 * time.Second)
-			return attempt < rabbitRetries, derr
+			return true, derr
 		}
 		networks := data.NetworkSettings.Networks
 		ip = networks["goad-bridge"].IPAddress
@@ -167,17 +174,25 @@ func (i *dockerInfrastructure) runAsDockerContainer(args interface{}) {
 	handleErr(err)
 	rabbitmqURL := fmt.Sprintf("RABBITMQ=%s", i.GetQueueURL())
 
+	var runnerPath string
+	if i.settings.RunnerPath == "" {
+		runnerPath = createTempDefaultRunner()
+	} else {
+		runnerPath = os.ExpandEnv(fmt.Sprintf("${PWD}/%s", i.settings.RunnerPath))
+	}
 	// Create container to execute lambda
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: "lambci/lambda",
-		Cmd:   append([]string{"index.handler"}, ToJSONString(args)),
+		Cmd:   append([]string{"index.handler"}, toJSONString(args)),
 		Volumes: map[string]struct{}{
 			"/var/task": struct{}{},
 		},
 		Env: []string{rabbitmqURL},
 	}, &container.HostConfig{
 		AutoRemove: true,
-		Binds:      []string{os.ExpandEnv("${PWD}/data/lambda:/var/task:ro")},
+		Binds: []string{
+			fmt.Sprintf("%s:/var/task:ro", runnerPath),
+		},
 	}, &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			"goad-bridge": &network.EndpointSettings{},
@@ -190,7 +205,7 @@ func (i *dockerInfrastructure) runAsDockerContainer(args interface{}) {
 	handleErr(err)
 }
 
-func ToJSONString(args interface{}) string {
+func toJSONString(args interface{}) string {
 	b, err := json.Marshal(args)
 	handleErr(err)
 	return string(b[:])
@@ -207,7 +222,6 @@ func (i *dockerInfrastructure) Teardown() {
 
 	timeout := time.Second * 1
 
-	// log.Printf("stopping RabbitMQ: %s", i.RabbitMQContainerID)
 	err = cli.ContainerStop(ctx, i.RabbitMQContainerID, &timeout)
 	handleErr(err)
 
@@ -221,7 +235,15 @@ func (i *dockerInfrastructure) Teardown() {
 		}
 	}
 
-	// log.Printf("shutting down bridge-network: %s", i.NetworkID)
 	err = cli.NetworkRemove(ctx, i.NetworkID)
 	handleErr(err)
+}
+
+func createTempDefaultRunner() string {
+	var fs afero.Fs = afero.NewOsFs()
+	dir := afero.GetTempDir(fs, "defaultRunner")
+	defaultRunnerZip, _ := infrastructure.Asset(infrastructure.DefaultRunnerAsset)
+	infrastructure.Unzip(defaultRunnerZip, dir)
+
+	return dir
 }

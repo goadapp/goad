@@ -2,9 +2,11 @@ site/node_modules
 site/dist
 data/lambda.zip
 data/lambda/goad-lambda
-infrastructure/aws/bindata.go
+infrastructure/bindata.go
 site/Upstatic
 build/
+
+*debug*
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
