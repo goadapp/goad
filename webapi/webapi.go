@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/goadapp/goad/goad"
 	"github.com/goadapp/goad/queue"
@@ -48,28 +48,55 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Commented out param handling, we have hard coded limits for the website testing
-	//
-	// concurrencyStr := r.URL.Query().Get("c")
-	// concurrency, cerr := strconv.Atoi(concurrencyStr)
-	// if cerr != nil {
-	// 	http.Error(w, "Invalid concurrency", 400)
-	// 	return
-	// }
-	//
-	// totStr := r.URL.Query().Get("tot")
-	// tot, toterr := strconv.Atoi(totStr)
-	// if toterr != nil {
-	// 	http.Error(w, "Invalid total", 400)
-	// 	return
-	// }
-	//
-	// timeoutStr := r.URL.Query().Get("timeout")
-	// timeout, timeouterr := strconv.Atoi(timeoutStr)
-	// if timeouterr != nil {
-	// 	http.Error(w, "Invalid timeout", 400)
-	// 	return
-	// }
+	concurrencyStr := r.URL.Query().Get("concurrency")
+	concurrency, concurrencyerr := strconv.Atoi(concurrencyStr)
+	if concurrencyerr != nil {
+		http.Error(w, "Invalid concurrency", 400)
+		return
+	}
+
+	requestsStr := r.URL.Query().Get("requests")
+	requests, requestserr := strconv.Atoi(requestsStr)
+	if requestserr != nil {
+		http.Error(w, "Invalid number of requests", 400)
+		return
+	}
+
+	timelimitStr := r.URL.Query().Get("timelimit")
+	timelimit, timelimiterr := strconv.Atoi(timelimitStr)
+	if timelimiterr != nil {
+		http.Error(w, "Invalid timelimit", 400)
+		return
+	}
+
+	timeoutStr := r.URL.Query().Get("timeout")
+	timeout, timeouterr := strconv.Atoi(timeoutStr)
+	if timeouterr != nil {
+		http.Error(w, "Invalid timeout", 400)
+		return
+	}
+
+	regions := r.URL.Query()["region[]"]
+	if len(regions) == 0 {
+		http.Error(w, "Missing region", 400)
+		return
+	}
+
+	config := goad.TestConfig{
+		URL:         url,
+		Concurrency: concurrency,
+		Requests:    requests,
+		Timelimit:   timelimit,
+		Timeout:     timeout,
+		Regions:     regions,
+		Method:      "GET",
+	}
+
+	test, testerr := goad.NewTest(&config)
+	if testerr != nil {
+		http.Error(w, testerr.Error(), 400)
+		return
+	}
 
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -78,20 +105,6 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	config := goad.TestConfig{
-		URL:         url,
-		Concurrency: 5,
-		Requests:    1000,
-		Timeout:     5,
-		Regions:     []string{"us-east-1", "eu-west-1"},
-		Method:      "GET",
-	}
-
-	test, testerr := goad.NewTest(&config)
-	if testerr != nil {
-		fmt.Println(testerr)
-		return
-	}
 	resultChan, teardown := test.Start()
 	defer teardown()
 
