@@ -10,7 +10,7 @@ GOPATH := ${PWD}/vendor:${GOPATH}
 export GOPATH
 
 # These will be provided to the target
-VERSION := 2.0.0-rc1
+VERSION := 2.0.0-rc1x
 BUILD := `git rev-parse HEAD`
 
 # Timestamp of last commit to allow for reproducable builds
