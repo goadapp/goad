@@ -34,14 +34,16 @@ type TestConfig struct {
 const nano = 1000000000
 
 var supportedRegions = []string{
-	"us-east-1",
-	"us-west-2",
-	"eu-west-1",
-	"ap-northeast-1",
-	"eu-central-1",
-	"ap-northeast-2",
-	"ap-southeast-1",
-	"ap-southeast-2",
+	"us-east-1",      // N. Virginia
+	"us-west-1",      // N.California
+	"us-west-2",      // Oregon
+	"eu-west-1",      // Ireland
+	"eu-central-1",   // Frankfurt
+	"ap-northeast-1", // Sydney
+	"ap-northeast-2", // Seoul
+	"ap-southeast-1", // Singapore
+	"ap-southeast-2", // Tokio
+	"sa-east-1",      // Sao Paulo
 }
 
 // Test type
