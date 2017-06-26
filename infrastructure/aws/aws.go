@@ -230,7 +230,7 @@ func (infra *AwsInfrastructure) createIAMLambdaRolePolicy(roleName string) error
 
 	_, err := svc.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyDocument: aws.String(`{
-          "Version": "2012-10-17",
+          "Version": "2017-06-23",
           "Statement": [
 					{
 				 "Action": [
