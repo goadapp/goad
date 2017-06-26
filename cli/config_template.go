@@ -39,6 +39,7 @@ eu-west-1 ;Ireland
 ;ap-southeast-2 ;Tokio
 ap-northeast-1 ;Sydney
 ;ap-northeast-2 ;Seoul
+;sa-east-1 ;Sao Paulo
 
 [headers]
 # These headers are used in the HTTP request header
