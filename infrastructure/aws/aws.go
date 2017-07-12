@@ -44,7 +44,7 @@ func (infra *AwsInfrastructure) invokeLambda(args interface{}) {
 	svc := lambda.New(session.New(), infra.config)
 
 	svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad:" + version.LambdaVersion()),
+		FunctionName: aws.String("goad"),
 		InvokeArgs:   toJSONReadSeeker(args),
 	})
 }
@@ -245,7 +245,7 @@ func (infra *AwsInfrastructure) createIAMLambdaRolePolicy(roleName string) error
 						 "lambda:Invoke*"
 				 ],
 				 "Resource": [
-						 "arn:aws:lambda:*:*:goad:*"
+						 "arn:aws:lambda:*:*:function:goad"
 				 ]
 		 },
 			{
