@@ -544,7 +544,7 @@ func (l *goadLambda) forkNewLambda() {
 	j, _ := json.Marshal(args)
 
 	output, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
-		FunctionName: aws.String("goad:" + version.LambdaVersion()),
+		FunctionName: aws.String("goad"),
 		InvokeArgs:   bytes.NewReader(j),
 	})
 	fmt.Println(output)
@@ -563,31 +563,20 @@ func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
 	settings := l.Settings
 	params := settings.RequestParameters
 	args.Flags = []string{
-		"-u",
-		fmt.Sprintf("%s", params.URL),
-		"-c",
-		fmt.Sprintf("%s", strconv.Itoa(settings.ConcurrencyCount)),
-		"-n",
-		fmt.Sprintf("%s", strconv.Itoa(settings.MaxRequestCount)),
-		"-p",
-		fmt.Sprintf("%s", strconv.Itoa(l.Settings.CompletedRequestCount)),
-		"-N",
-		fmt.Sprintf("%s", strconv.Itoa(settings.StresstestTimeout)),
-		"-s",
-		fmt.Sprintf("%s", settings.SqsURL),
-		"-q",
-		fmt.Sprintf("%s", settings.QueueRegion),
-		"-t",
-		fmt.Sprintf("%s", settings.ClientTimeout.String()),
-		"-f",
-		fmt.Sprintf("%s", settings.ReportingFrequency.String()),
-		"-r",
-		fmt.Sprintf("%s", settings.LambdaRegion),
-		"-m",
-		fmt.Sprintf("%s", params.RequestMethod),
-		"-b",
-		fmt.Sprintf("%s", params.RequestBody),
+		fmt.Sprintf("--concurrency=%s", strconv.Itoa(settings.ConcurrencyCount)),
+		fmt.Sprintf("--requests=%s", strconv.Itoa(settings.MaxRequestCount)),
+		fmt.Sprintf("--completed-count=%s", strconv.Itoa(l.Settings.CompletedRequestCount)),
+		fmt.Sprintf("--execution-time=%s", strconv.Itoa(settings.StresstestTimeout)),
+		fmt.Sprintf("--sqsurl=%s", settings.SqsURL),
+		fmt.Sprintf("--queue-region=%s", settings.QueueRegion),
+		fmt.Sprintf("--client-timeout=%s", settings.ClientTimeout),
+		fmt.Sprintf("--frequency=%s", settings.ReportingFrequency),
+		fmt.Sprintf("--aws-region=%s", settings.LambdaRegion),
+		fmt.Sprintf("--method=%s", settings.RequestParameters.RequestMethod),
+		fmt.Sprintf("--body=%s", settings.RequestParameters.RequestBody),
 	}
+	args.Flags = append(args.Flags, fmt.Sprintf("%s", params.URL))
+	fmt.Println(args.Flags)
 	return args
 }
 
