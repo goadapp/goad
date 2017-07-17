@@ -379,10 +379,10 @@ func renderRegion(data queue.AggData, y int) int {
 	renderString(x, y, regionStr, termbox.ColorWhite|termbox.AttrBold, termbox.ColorBlue)
 	x = 0
 	y++
-	headingStr := "   TotReqs   TotBytes    AvgTime   AvgReq/s  AvgKbps/s"
+	headingStr := "   TotReqs   TotBytes    AvgTime    AvgReq/s  AvgBytes/s"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr := fmt.Sprintf("%10d %10s   %7.3fs %10.2f %10.2f", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, data.AveKBytesPerSec)
+	resultStr := fmt.Sprintf("%10d %10s   %7.3fs %10.2f %10s/s", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, humanize.Bytes(uint64(data.AveKBytesPerSec)))
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 	headingStr = "   Slowest    Fastest   Timeouts  TotErrors"
@@ -435,8 +435,8 @@ func boldPrintln(msg string) {
 }
 
 func printData(data *queue.AggData) {
-	boldPrintln("   TotReqs   TotBytes    AvgTime   AvgReq/s  AvgKbps/s")
-	fmt.Printf("%10d %10s   %7.3fs %10.2f %10.2f\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, data.AveKBytesPerSec)
+	boldPrintln("   TotReqs   TotBytes    AvgTime    AvgReq/s  AvgBytes/s")
+	fmt.Printf("%10d %10s   %7.3fs %10.2f %10s/s\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, humanize.Bytes(uint64(data.AveKBytesPerSec)))
 	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
 	fmt.Printf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
 	fmt.Println("")
