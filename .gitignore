@@ -5,6 +5,7 @@ data/lambda/goad-lambda
 infrastructure/bindata.go
 site/Upstatic
 build/
+goad.ini
 
 *debug*
 
