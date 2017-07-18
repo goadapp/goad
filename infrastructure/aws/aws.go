@@ -2,8 +2,12 @@ package awsinfra
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
+	"path"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -67,18 +71,29 @@ func (infra *AwsInfrastructure) teardown() {
 	infra.removeSQSQueue()
 }
 
-func (infra *AwsInfrastructure) Setup() (func(), error) {
+func (infra *AwsInfrastructure) Setup(settings infrastructure.Settings) (func(), error) {
 	roleArn, err := infra.createIAMLambdaRole("goad-lambda-role")
 	if err != nil {
 		return nil, err
 	}
-	zip, err := Asset("data/lambda.zip")
-	if err != nil {
-		return nil, err
+
+	var zipBuffer bytes.Buffer
+	if settings.RunnerPath != "" {
+		runnerPath := fmt.Sprintf("%s/", path.Clean(settings.RunnerPath))
+		err = infrastructure.Zipit(runnerPath, &zipBuffer)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		assetBytes, assetErr := infrastructure.Asset(infrastructure.DefaultRunnerAsset)
+		if assetErr != nil {
+			return nil, assetErr
+		}
+		zipBuffer = *bytes.NewBuffer(assetBytes)
 	}
 
 	for _, region := range infra.regions {
-		err = infra.createOrUpdateLambdaFunction(region, roleArn, zip)
+		err = infra.createOrUpdateLambdaFunction(region, roleArn, zipBuffer.Bytes())
 		if err != nil {
 			return nil, err
 		}
@@ -93,25 +108,30 @@ func (infra *AwsInfrastructure) Setup() (func(), error) {
 	}, nil
 }
 
+func calcShasum(payload []byte) string {
+	h := sha256.Sum256(payload)
+	return string(base64.StdEncoding.EncodeToString(h[:]))
+}
+
 func (infra *AwsInfrastructure) createOrUpdateLambdaFunction(region, roleArn string, payload []byte) error {
 	config := aws.NewConfig().WithRegion(region)
 	svc := lambda.New(session.New(), config)
 
 	exists, err := lambdaExists(svc)
-
 	if err != nil {
 		return err
 	}
-
-	if exists {
-		aliasExists, err := lambdaAliasExists(svc)
-		if err != nil || aliasExists {
-			return err
-		}
+	if !exists {
+		return infra.createLambdaFunction(svc, roleArn, payload)
+	}
+	upToDate, err := lambdaUpToDate(svc, calcShasum(payload))
+	if err != nil {
+		return err
+	}
+	if !upToDate {
 		return infra.updateLambdaFunction(svc, roleArn, payload)
 	}
-
-	return infra.createLambdaFunction(svc, roleArn, payload)
+	return nil
 }
 
 func (infra *AwsInfrastructure) createLambdaFunction(svc *lambda.Lambda, roleArn string, payload []byte) error {
@@ -130,7 +150,7 @@ func (infra *AwsInfrastructure) createLambdaFunction(svc *lambda.Lambda, roleArn
 	if err != nil {
 		return err
 	}
-	return createLambdaAlias(svc, function.Version)
+	return createOrUpdateLambdaAlias(svc, function.Version)
 }
 
 func (infra *AwsInfrastructure) updateLambdaFunction(svc *lambda.Lambda, roleArn string, payload []byte) error {
@@ -142,30 +162,69 @@ func (infra *AwsInfrastructure) updateLambdaFunction(svc *lambda.Lambda, roleArn
 	if err != nil {
 		return err
 	}
-	return createLambdaAlias(svc, function.Version)
+	return createOrUpdateLambdaAlias(svc, function.Version)
 }
 
 func lambdaExists(svc *lambda.Lambda) (bool, error) {
-	_, err := svc.GetFunction(&lambda.GetFunctionInput{
+	_, err := svc.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
 		FunctionName: aws.String("goad"),
 	})
+	notFound, err := checkResourseNotFound(err)
+	if err != nil {
+		return false, err
+	}
+	if notFound {
+		return false, nil
+	}
+	return true, nil
+}
 
+func lambdaUpToDate(svc *lambda.Lambda, shasum string) (bool, error) {
+	config, err := svc.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
+		FunctionName: aws.String("goad"),
+	})
+	if err != nil {
+		return false, err
+	}
+	return *config.CodeSha256 == shasum, nil
+}
+
+func checkResourseNotFound(err error) (bool, error) {
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			if awsErr.Code() == "ResourceNotFoundException" {
-				return false, nil
+				return true, nil
 			}
 		}
 		return false, err
 	}
+	return false, err
+}
 
-	return true, nil
+func createOrUpdateLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
+	_, err := svc.GetAlias(&lambda.GetAliasInput{
+		FunctionName: aws.String("goad"),
+		Name:         aws.String(version.LambdaVersion()),
+	})
+	if err != nil {
+		return createLambdaAlias(svc, functionVersion)
+	}
+	return updateLambdaAlias(svc, functionVersion)
 }
 
 func createLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
 	_, err := svc.CreateAlias(&lambda.CreateAliasInput{
 		FunctionName:    aws.String("goad"),
-		FunctionVersion: functionVersion,
+		FunctionVersion: aws.String("$LATEST"),
+		Name:            aws.String(version.LambdaVersion()),
+	})
+	return err
+}
+
+func updateLambdaAlias(svc *lambda.Lambda, functionVersion *string) error {
+	_, err := svc.UpdateAlias(&lambda.UpdateAliasInput{
+		FunctionName:    aws.String("goad"),
+		FunctionVersion: aws.String("$LATEST"),
 		Name:            aws.String(version.LambdaVersion()),
 	})
 	return err

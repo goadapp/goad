@@ -29,6 +29,11 @@ type TestConfig struct {
 	Output      string
 	Settings    string
 	RunDocker   bool
+	Task        CustomTask
+}
+
+type CustomTask struct {
+	RunnerPath string
 }
 
 const nano = 1000000000
@@ -71,10 +76,12 @@ func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	} else {
 		t.infra = awsinfra.New(t.Config.Regions, awsConfig)
 	}
-	teardown, err := t.infra.Setup()
+	teardown, err := t.infra.Setup(infrastructure.Settings{
+		RunnerPath: t.Config.Task.RunnerPath,
+	})
 	handleErr(err)
 	t.lambdas = numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
-	t.invokeLambdas(awsConfig, t.infra.GetQueueURL())
+	t.invokeLambdas()
 
 	results := make(chan queue.RegionsAggData)
 
@@ -88,7 +95,7 @@ func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	return results, teardown
 }
 
-func (t *Test) invokeLambdas(awsConfig *aws.Config, queueURL string) {
+func (t *Test) invokeLambdas() {
 	for i := 0; i < t.lambdas; i++ {
 		region := t.Config.Regions[i%len(t.Config.Regions)]
 		requests, requestsRemainder := divide(t.Config.Requests, t.lambdas)
@@ -104,7 +111,7 @@ func (t *Test) invokeLambdas(awsConfig *aws.Config, queueURL string) {
 			fmt.Sprintf("--concurrency=%s", strconv.Itoa(int(concurrency))),
 			fmt.Sprintf("--requests=%s", strconv.Itoa(int(requests))),
 			fmt.Sprintf("--execution-time=%s", strconv.Itoa(int(execTimeout))),
-			fmt.Sprintf("--sqsurl=%s", queueURL),
+			fmt.Sprintf("--sqsurl=%s", t.infra.GetQueueURL()),
 			fmt.Sprintf("--queue-region=%s", c.Regions[0]),
 			fmt.Sprintf("--client-timeout=%s", time.Duration(c.Timeout)*time.Second),
 			fmt.Sprintf("--frequency=%s", reportingFrequency(t.lambdas).String()),

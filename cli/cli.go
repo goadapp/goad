@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	iniFile        = "goad.ini"
 	coldef         = termbox.ColorDefault
 	nano           = 1000000000
 	general        = "general"
@@ -46,6 +45,7 @@ const (
 )
 
 var (
+	iniFile         = "goad.ini"
 	app             = kingpin.New("goad", "An AWS Lambda powered load testing tool")
 	urlArg          = app.Arg(urlKey, "[http[s]://]hostname[:port]/path optional if defined in goad.ini")
 	url             = urlArg.String()
@@ -107,9 +107,11 @@ func writeConfigStream(writer io.Writer) {
 }
 
 func aggregateConfiguration() *goad.TestConfig {
-	config := parseSettings(iniFile)
+	config := parseSettings()
 	applyDefaultsFromConfig(config)
-	return parseCommandline()
+	config = parseCommandline()
+	applyExtendedConfiguration(config)
+	return config
 }
 
 func applyDefaultsFromConfig(config *goad.TestConfig) {
@@ -182,21 +184,23 @@ func isZero(v reflect.Value) bool {
 	return v.Interface() == z.Interface()
 }
 
-func parseSettings(source interface{}) *goad.TestConfig {
-	config := &goad.TestConfig{}
-	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, source)
+func loadIni() *ini.File {
+	cfg, err := ini.LoadSources(ini.LoadOptions{AllowBooleanKeys: true}, iniFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Println(err.Error())
 		}
+		return nil
+	}
+	return cfg
+}
+
+func parseSettings() *goad.TestConfig {
+	config := &goad.TestConfig{}
+	cfg := loadIni()
+	if cfg == nil {
 		return config
 	}
-	regionsSection := cfg.Section("regions")
-	config.Regions = regionsSection.KeyStrings()
-
-	headersSection := cfg.Section("headers")
-	headerHash := headersSection.KeysHash()
-	config.Headers = foldHeaders(headerHash)
 
 	generalSection := cfg.Section(general)
 	config.URL = generalSection.Key(urlKey).String()
@@ -208,7 +212,32 @@ func parseSettings(source interface{}) *goad.TestConfig {
 	config.Timeout, _ = generalSection.Key(timeoutKey).Int()
 	config.Output = generalSection.Key(jsonOutputKey).String()
 	config.RunDocker, _ = generalSection.Key(runDockerKey).Bool()
+
+	regionsSection := cfg.Section("regions")
+	config.Regions = regionsSection.KeyStrings()
+
+	headersSection := cfg.Section("headers")
+	headerHash := headersSection.KeysHash()
+	config.Headers = foldHeaders(headerHash)
+
 	return config
+}
+
+func applyExtendedConfiguration(config *goad.TestConfig) {
+	cfg := loadIni()
+	if cfg == nil {
+		return
+	}
+	taskSection := cfg.Section("task")
+	runnerPathKey, err := taskSection.GetKey("runner")
+	if err != nil {
+		return
+	}
+	task := goad.CustomTask{
+		// Name:       taskSection.Name(),
+		RunnerPath: runnerPathKey.String(),
+	}
+	config.Task = task
 }
 
 func foldHeaders(hash map[string]string) []string {
