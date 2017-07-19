@@ -7,8 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
+	"time"
 
+	ask "github.com/GeertJohan/go.ask"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -18,6 +21,10 @@ import (
 	"github.com/goadapp/goad/infrastructure"
 	"github.com/goadapp/goad/version"
 	uuid "github.com/satori/go.uuid"
+)
+
+var (
+	roleDate = time.Date(2017, 07, 13, 18, 40, 0, 0, time.UTC)
 )
 
 // AwsInfrastructure manages the resource creation and updates necessary to use
@@ -281,7 +288,21 @@ func (infra *AwsInfrastructure) createIAMLambdaRole(roleName string) (arn string
 		return "", err
 	}
 
+	CheckRoleDate(resp.Role)
 	return *resp.Role.Arn, nil
+}
+
+func CheckRoleDate(role *iam.Role) {
+	if role.CreateDate.Before(roleDate) {
+		answer, err := ask.DefaultAsk(true, "Your IAM role for goad might be outdated, continue anyways?")
+		if err != nil {
+			fmt.Println("moving on...")
+			return
+		}
+		if !answer {
+			os.Exit(0)
+		}
+	}
 }
 
 func (infra *AwsInfrastructure) createIAMLambdaRolePolicy(roleName string) error {

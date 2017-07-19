@@ -2,6 +2,18 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/GeertJohan/go.ask"
+  packages = ["."]
+  revision = "ab3df2b897f1385ea2706330b98396842325b683"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/GeertJohan/go.linenoise"
+  packages = ["."]
+  revision = "1918ff89d61336553294cc577e9a32b647732fff"
+
+[[projects]]
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
   revision = "f533f7a102197536779ea3a8cb881d639e21ec5a"
@@ -176,6 +188,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "52ed8cc0de46968cd8a6eef81490c45a5c264056d5ce59da3bac269f358934a2"
+  inputs-digest = "dd3da4a12ee3809f1960c861839edf6dc0fb534b531d01bc0a37f3a71142b018"
   solver-name = "gps-cdcl"
   solver-version = 1
