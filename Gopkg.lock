@@ -13,6 +13,12 @@
   revision = "5e5dc898656f695e2a086b8e12559febbfc01562"
 
 [[projects]]
+  name = "github.com/Songmu/prompter"
+  packages = ["."]
+  revision = "b5721e8d556682bcef33262731d98a39dee14dc4"
+  version = "0.1.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/alecthomas/template"
   packages = [".","parse"]
@@ -92,6 +98,12 @@
   revision = "c01cf91b011868172fdcd9f41838e80c9d716264"
 
 [[projects]]
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  revision = "fc9e8d8ef48496124e79ae0df75490096eccf6fe"
+  version = "v0.0.2"
+
+[[projects]]
   name = "github.com/mattn/go-runewidth"
   packages = ["."]
   revision = "e882a96ec18dd43fa283187b66af74497c9101c0"
@@ -140,6 +152,12 @@
   version = "v1.1.3"
 
 [[projects]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+  packages = ["ssh/terminal"]
+  revision = "4d70248d17d12d1edb7153434a74001c1540938b"
+
+[[projects]]
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","proxy"]
   revision = "da118f7b8e5954f39d0d2130ab35d4bf0e3cb344"
@@ -176,6 +194,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "52ed8cc0de46968cd8a6eef81490c45a5c264056d5ce59da3bac269f358934a2"
+  inputs-digest = "b4a7c82ef87e35e38f64abecf1640fa6fb5934a7e91714af11cf954dbff0e631"
   solver-name = "gps-cdcl"
   solver-version = 1
