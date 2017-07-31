@@ -18,6 +18,10 @@ script:
 
 deploy:
   provider: releases
+  # will mark a (real) release from the WebUI
+  # https://github.com/goadapp/goad/issues/149#issuecomment-319097342
+  # from now we mark everything as pre-release
+  prerelease: true
   api_key:
     secure: jgFqsQPaEsgf2SoAKS0hZDo2MCh9yCv3v2Q+6P5kegVgP4REXP5tuIPNWnlK2oFv/s21QJuO69nNKTZemniJMS6AErKL3hITZemFwwlQQMUXYlp6FdkpIjAiin8v9SCfeWyFJRYsPdZCWQR6PYzgOgO5KJHqXttwddc4h6kLvnczfDRuvglaaLR5mnXAmiQnnKmlk4EmuV6NkVoSK/3oYmWGdzzOxe6qZuicVB6Y5+xxC36TllMYbzGyA7100wHNZGMqHr6DmaNoe1DFLbB3xwqyDYqsEeEJo+M4vGiBIJaYSUPHbsVYULwNRIBg/q04rBZL3KnVXu/tvzkEd6Wf/aWatmYuok+UDDqELiBHhvzHB4a5ND6lLT2V2aDqYN43eMarnWxtscMSAsa3G7dSqu89NmjvuCCySDacGgPPkonc2fQrP4LU+/3dHSTkYcNXVeu4OhnNxxoAAXZbxjQF8Y5pKyTYpb/xMb7xyeKtvrv2hC2A7t3quL0xvKTC90KYQzyymIWhq253UhOQZ6fN9C50j6jRmo/caSVYpC2PAEiiu0mJ8nC5Rinw5Q84rc07sf0cUDMKPLcO3GbXRX3XyMzLYB/1hSlcShvm62c6UKF20IJNDvEgS4KkXJdV784vOfOiI6YVEBnTA8ME9TGXgGKogezL20d8CsxhEa9XfzY=
   file:
