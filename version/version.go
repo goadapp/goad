@@ -4,8 +4,9 @@ import "strings"
 
 // Version describes the Goad version.
 var (
-	version string
-	build   string
+	version   string
+	build     string
+	travisTag string
 )
 
 // Version returns the version
@@ -21,9 +22,16 @@ func Build() string {
 	return build
 }
 
+func ReleaseVersion() string {
+	return travisTag
+}
+
 // String returns a composed string of version and build number
 func String() string {
-	return Version() + "-" + Build()
+	if ReleaseVersion() == "" {
+		return Version() + "-" + Build()
+	}
+	return ReleaseVersion()
 }
 
 // LambdaVersion returns a version string that can be used as a Lambda function
