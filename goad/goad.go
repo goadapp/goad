@@ -40,6 +40,7 @@ const nano = 1000000000
 
 var supportedRegions = []string{
 	"us-east-1",      // N. Virginia
+	"us-east-2",      // Ohio
 	"us-west-1",      // N.California
 	"us-west-2",      // Oregon
 	"eu-west-1",      // Ireland
