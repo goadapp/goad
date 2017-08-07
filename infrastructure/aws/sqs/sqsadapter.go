@@ -1,4 +1,4 @@
-package queue
+package sqs
 
 import (
 	"encoding/json"
@@ -7,41 +7,28 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/goadapp/goad/api"
 )
 
-// Result test result
-type Result struct {
-	Time             string `json:"time"`
-	Host             string `json:"host"`
-	Type             string `json:"type"`
-	Status           int    `json:"status"`
-	ElapsedFirstByte int64  `json:"elapsed-first-byte"`
-	ElapsedLastByte  int64  `json:"elapsed-last-byte"`
-	Elapsed          int64  `json:"elapsed"`
-	Bytes            int    `json:"bytes"`
-	State            string `json:"state"`
-	Instance         string `json:"instance"`
-}
-
-// SQSAdaptor is used to send messages to the queue
-type SQSAdaptor struct {
+// Adapter is used to send messages to the queue
+type Adapter struct {
 	Client   *sqs.SQS
 	QueueURL string
 }
 
-// DummyAdaptor is used to send messages to the screen for testing
-type DummyAdaptor struct {
+// DummyAdapter is used to send messages to the screen for testing
+type DummyAdapter struct {
 	QueueURL string
 }
 
 // NewSQSAdapter returns a new sqs adator object
-func NewSQSAdapter(awsConfig *aws.Config, queueURL string) *SQSAdaptor {
-	return &SQSAdaptor{getClient(awsConfig), queueURL}
+func NewSQSAdapter(awsConfig *aws.Config, queueURL string) *Adapter {
+	return &Adapter{getClient(awsConfig), queueURL}
 }
 
 // NewDummyAdaptor returns a new sqs adator object
-func NewDummyAdaptor(queueURL string) *DummyAdaptor {
-	return &DummyAdaptor{queueURL}
+func NewDummyAdaptor(queueURL string) *DummyAdapter {
+	return &DummyAdapter{queueURL}
 }
 
 func getClient(awsConfig *aws.Config) *sqs.SQS {
@@ -50,7 +37,7 @@ func getClient(awsConfig *aws.Config) *sqs.SQS {
 }
 
 // Receive a result, or timeout in 1 second
-func (adaptor SQSAdaptor) Receive() *AggData {
+func (adaptor Adapter) Receive() *api.RunnerResult {
 	params := &sqs.ReceiveMessageInput{
 		QueueUrl:            aws.String(adaptor.QueueURL),
 		MaxNumberOfMessages: aws.Int64(1),
@@ -86,20 +73,21 @@ func (adaptor SQSAdaptor) Receive() *AggData {
 		fmt.Println(err.Error())
 		return nil
 	}
-
-	return &result
+	return result
 }
 
-func resultFromJSON(str string) (AggData, error) {
-	var result AggData
-	jsonerr := json.Unmarshal([]byte(str), &result)
+func resultFromJSON(str string) (*api.RunnerResult, error) {
+	var result = &api.RunnerResult{
+		Statuses: make(map[string]int),
+	}
+	jsonerr := json.Unmarshal([]byte(str), result)
 	if jsonerr != nil {
 		return result, jsonerr
 	}
 	return result, nil
 }
 
-func jsonFromResult(result AggData) (string, error) {
+func jsonFromResult(result api.RunnerResult) (string, error) {
 	data, jsonerr := json.Marshal(result)
 	if jsonerr != nil {
 		return "", jsonerr
@@ -108,11 +96,11 @@ func jsonFromResult(result AggData) (string, error) {
 }
 
 // SendResult adds a result to the queue
-func (adaptor SQSAdaptor) SendResult(result AggData) {
+func (adaptor Adapter) SendResult(result api.RunnerResult) error {
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)
-		return
+		panic(jsonerr)
 	}
 	params := &sqs.SendMessageInput{
 		MessageBody: aws.String(str),
@@ -120,14 +108,11 @@ func (adaptor SQSAdaptor) SendResult(result AggData) {
 	}
 	_, err := adaptor.Client.SendMessage(params)
 
-	if err != nil {
-		fmt.Println(err.Error())
-		return
-	}
+	return err
 }
 
 // SendResult prints the result
-func (adaptor DummyAdaptor) SendResult(result AggData) {
+func (adaptor DummyAdapter) SendResult(result api.RunnerResult) {
 	str, jsonerr := jsonFromResult(result)
 	if jsonerr != nil {
 		fmt.Println(jsonerr)

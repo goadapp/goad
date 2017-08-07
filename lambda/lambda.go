@@ -23,7 +23,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
-	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/api"
+	"github.com/goadapp/goad/infrastructure/aws/sqs"
 	"github.com/goadapp/goad/version"
 	"github.com/streadway/amqp"
 )
@@ -47,13 +48,14 @@ var (
 	maxRequestCount               = app.Flag("requests", "Total number of requests to make").Short('n').Default("10").Int()
 	previousCompletedRequestCount = app.Flag("completed-count", "Number of requests already completed in case of lambda timeout").Short('p').Default("0").Int()
 	execTimeout                   = app.Flag("execution-time", "Maximum execution time in seconds").Short('t').Default("0").Int()
+	runnerID                      = app.Flag("runner-id", "A id to identifiy this lambda function").Required().Int()
 )
 
 const AWS_MAX_TIMEOUT = 295
 
 func main() {
 	lambdaSettings := parseLambdaSettings()
-	Lambda := NewLambda(lambdaSettings)
+	Lambda := newLambda(lambdaSettings)
 	Lambda.runLoadTest()
 }
 
@@ -80,6 +82,7 @@ func parseLambdaSettings() LambdaSettings {
 		ReportingFrequency:    *reportingFrequency,
 		RequestParameters:     requestParameters,
 		StresstestTimeout:     *execTimeout,
+		RunnerID:              *runnerID,
 	}
 	return lambdaSettings
 }
@@ -97,6 +100,7 @@ type LambdaSettings struct {
 	ReportingFrequency       time.Duration
 	ClientTimeout            time.Duration
 	RequestParameters        requestParameters
+	RunnerID                 int
 }
 
 // goadLambda holds the current state of the execution
@@ -191,16 +195,16 @@ func (l *goadLambda) runLoadTest() {
 	fmt.Printf("\nYay🎈  - %d requests completed\n", l.Settings.CompletedRequestCount)
 }
 
-// NewLambda creates a new Lambda to execute a load test from a given
+// newLambda creates a new Lambda to execute a load test from a given
 // LambdaSettings
-func NewLambda(s LambdaSettings) *goadLambda {
+func newLambda(s LambdaSettings) *goadLambda {
 	setLambdaExecTimeout(&s)
 	setDefaultConcurrencyCount(&s)
 
 	l := &goadLambda{}
 	l.Settings = s
 
-	l.Metrics = NewRequestMetric(s.LambdaRegion)
+	l.Metrics = NewRequestMetric(s.LambdaRegion, s.RunnerID)
 	remainingRequestCount := s.MaxRequestCount - s.CompletedRequestCount
 	if remainingRequestCount < 0 {
 		remainingRequestCount = 0
@@ -251,7 +255,7 @@ func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
 	if rabbit != "" {
 		l.resultSender = newRabbitMQAdapter(rabbit)
 	} else {
-		l.resultSender = queue.NewSQSAdapter(config, l.Settings.SqsURL)
+		l.resultSender = sqs.NewSQSAdapter(config, l.Settings.SqsURL)
 	}
 }
 
@@ -263,7 +267,7 @@ type rabbitMQAdapter struct {
 	conn *amqp.Connection
 }
 
-func (r *rabbitMQAdapter) SendResult(data queue.AggData) {
+func (r *rabbitMQAdapter) SendResult(data api.RunnerResult) error {
 	body, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
@@ -278,7 +282,7 @@ func (r *rabbitMQAdapter) SendResult(data queue.AggData) {
 			Body:        []byte(body),
 		})
 	log.Printf(" [x] Sent %s", body)
-	failOnError(err, "Failed to publish a message")
+	return err
 }
 
 func newRabbitMQAdapter(queueURL string) resultSender {
@@ -447,7 +451,7 @@ func prepareHttpRequest(params requestParameters) *http.Request {
 }
 
 type requestMetric struct {
-	aggregatedResults         *queue.AggData
+	aggregatedResults         *api.RunnerResult
 	firstRequestTime          int64
 	lastRequestTime           int64
 	timeToFirstTotal          int64
@@ -456,12 +460,15 @@ type requestMetric struct {
 }
 
 type resultSender interface {
-	SendResult(queue.AggData)
+	SendResult(api.RunnerResult) error
 }
 
-func NewRequestMetric(region string) *requestMetric {
+func NewRequestMetric(region string, runnerID int) *requestMetric {
 	metric := &requestMetric{
-		aggregatedResults: &queue.AggData{Region: region},
+		aggregatedResults: &api.RunnerResult{
+			Region:   region,
+			RunnerID: runnerID,
+		},
 	}
 	metric.resetAndKeepTotalReqs()
 	return metric
@@ -469,7 +476,7 @@ func NewRequestMetric(region string) *requestMetric {
 
 func (m *requestMetric) addRequest(r *requestResult) {
 	agg := m.aggregatedResults
-	agg.TotalReqs++
+	agg.RequestCount++
 	m.requestCountSinceLastSend++
 	if m.firstRequestTime == 0 {
 		m.firstRequestTime = r.Time
@@ -477,11 +484,11 @@ func (m *requestMetric) addRequest(r *requestResult) {
 	m.lastRequestTime = r.Time + r.Elapsed
 
 	if r.Timeout {
-		agg.TotalTimedOut++
+		agg.TimedOut++
 	} else if r.ConnectionError {
-		agg.TotalConnectionError++
+		agg.ConnectionErrors++
 	} else {
-		agg.TotBytesRead += r.Bytes
+		agg.BytesRead += r.Bytes
 		m.requestTimeTotal += r.ElapsedLastByte
 		m.timeToFirstTotal += r.ElapsedFirstByte
 
@@ -501,25 +508,21 @@ func (m *requestMetric) addRequest(r *requestResult) {
 
 func (m *requestMetric) aggregate() {
 	agg := m.aggregatedResults
-	countOk := int(m.requestCountSinceLastSend) - (agg.TotalTimedOut + agg.TotalConnectionError)
-	timeDelta := time.Duration(m.lastRequestTime-m.firstRequestTime) * time.Nanosecond
-	timeDeltaInSeconds := float32(timeDelta.Seconds())
-	if timeDeltaInSeconds > 0 {
-		agg.AveKBytesPerSec = float32(agg.TotBytesRead) / timeDeltaInSeconds
-		agg.AveReqPerSec = float32(countOk) / timeDeltaInSeconds
-	}
+	countOk := int(m.requestCountSinceLastSend) - (agg.TimedOut + agg.ConnectionErrors)
+	agg.TimeDelta = time.Duration(m.lastRequestTime-m.firstRequestTime) * time.Nanosecond
 	if countOk > 0 {
 		agg.AveTimeToFirst = m.timeToFirstTotal / int64(countOk)
 		agg.AveTimeForReq = m.requestTimeTotal / int64(countOk)
 	}
 	agg.FatalError = ""
-	if (agg.TotalTimedOut + agg.TotalConnectionError) > int(m.requestCountSinceLastSend)/2 {
+	if (agg.TimedOut + agg.ConnectionErrors) > int(m.requestCountSinceLastSend)/2 {
 		agg.FatalError = "Over 50% of requests failed, aborting"
 	}
 }
 
 func (m *requestMetric) sendAggregatedResults(sender resultSender) {
-	sender.SendResult(*m.aggregatedResults)
+	err := sender.SendResult(*m.aggregatedResults)
+	failOnError(err, "Failed to send data to cli")
 	m.resetAndKeepTotalReqs()
 }
 
@@ -529,8 +532,9 @@ func (m *requestMetric) resetAndKeepTotalReqs() {
 	m.lastRequestTime = 0
 	m.requestTimeTotal = 0
 	m.timeToFirstTotal = 0
-	m.aggregatedResults = &queue.AggData{
+	m.aggregatedResults = &api.RunnerResult{
 		Region:   m.aggregatedResults.Region,
+		RunnerID: m.aggregatedResults.RunnerID,
 		Statuses: make(map[string]int),
 		Fastest:  math.MaxInt64,
 		Finished: false,
@@ -570,6 +574,7 @@ func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
 		fmt.Sprintf("--sqsurl=%s", settings.SqsURL),
 		fmt.Sprintf("--queue-region=%s", settings.QueueRegion),
 		fmt.Sprintf("--client-timeout=%s", settings.ClientTimeout),
+		fmt.Sprintf("--runner-id=%d", settings.RunnerID),
 		fmt.Sprintf("--frequency=%s", settings.ReportingFrequency),
 		fmt.Sprintf("--aws-region=%s", settings.LambdaRegion),
 		fmt.Sprintf("--method=%s", settings.RequestParameters.RequestMethod),

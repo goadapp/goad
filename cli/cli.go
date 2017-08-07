@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,7 +20,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/goadapp/goad/goad"
-	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/result"
 	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
 )
@@ -82,17 +81,14 @@ func Run() {
 	config := aggregateConfiguration()
 	test := createGoadTest(config)
 
-	var finalResult queue.RegionsAggData
-	defer printSummary(&finalResult)
-
-	if config.Output != "" {
-		defer saveJSONSummary(*outputFile, &finalResult)
-	}
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
 
-	start(test, &finalResult, sigChan)
+	result := start(test, sigChan)
+	defer printSummary(result)
+	if config.Output != "" {
+		defer saveJSONSummary(*outputFile, result)
+	}
 }
 
 func writeIniFile() {
@@ -298,7 +294,8 @@ func createGoadTest(config *goad.TestConfig) *goad.Test {
 	return test
 }
 
-func start(test *goad.Test, finalResult *queue.RegionsAggData, sigChan chan os.Signal) {
+func start(test *goad.Test, sigChan chan os.Signal) result.LambdaResults {
+	var currentResult result.LambdaResults
 	resultChan, teardown := test.Start()
 	defer teardown()
 
@@ -337,43 +334,37 @@ outer:
 			if !ok {
 				break outer
 			}
-
+			currentResult = *result
 			if firstTime {
 				clearLogo()
 				firstTime = false
 			}
 
-			// sort so that regions always appear in the same order
-			var regions []string
-			for key := range result.Regions {
-				regions = append(regions, key)
-			}
-			sort.Strings(regions)
 			y := 3
 			totalReqs := 0
-			for _, region := range regions {
-				data := result.Regions[region]
-				totalReqs += data.TotalReqs
-				y = renderRegion(data, y)
+			regionsData := currentResult.RegionsData()
+			for _, region := range currentResult.Regions() {
+				totalReqs += regionsData[region].TotalReqs
+				y = renderRegion(regionsData[region], y)
 				y++
 			}
 
 			y = 0
 			var percentDone float64
-			if result.TotalExpectedRequests > 0 {
-				percentDone = float64(totalReqs) / float64(result.TotalExpectedRequests)
+			if test.Config.Requests > 0 {
+				percentDone = float64(totalReqs) / float64(test.Config.Requests)
 			} else {
 				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Config.Timelimit), 1.0)
 			}
 			drawProgressBar(percentDone, y)
 
 			termbox.Flush()
-			finalResult.Regions = result.Regions
 
 		case <-sigChan:
 			break outer
 		}
 	}
+	return currentResult
 }
 
 func renderLogo() {
@@ -400,7 +391,7 @@ func clearLogo() {
 }
 
 // renderRegion returns the y for the next empty line
-func renderRegion(data queue.AggData, y int) int {
+func renderRegion(data result.AggData, y int) int {
 	x := 0
 	renderString(x, y, "Region: ", termbox.ColorWhite, termbox.ColorBlue)
 	x += 8
@@ -417,14 +408,14 @@ func renderRegion(data queue.AggData, y int) int {
 	headingStr = "   Slowest    Fastest   Timeouts  TotErrors"
 	renderString(x, y, headingStr, coldef|termbox.AttrBold, coldef)
 	y++
-	resultStr = fmt.Sprintf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(&data))
+	resultStr = fmt.Sprintf("  %7.3fs   %7.3fs %10d %10d", float64(data.Slowest)/nano, float64(data.Fastest)/nano, data.TotalTimedOut, totErrors(data))
 	renderString(x, y, resultStr, coldef, coldef)
 	y++
 
 	return y
 }
 
-func totErrors(data *queue.AggData) int {
+func totErrors(data result.AggData) int {
 	var okReqs int
 	for statusStr, value := range data.Statuses {
 		status, _ := strconv.Atoi(statusStr)
@@ -463,7 +454,7 @@ func boldPrintln(msg string) {
 	fmt.Printf("\033[1m%s\033[0m\n", msg)
 }
 
-func printData(data *queue.AggData) {
+func printData(data result.AggData) {
 	boldPrintln("   TotReqs   TotBytes    AvgTime    AvgReq/s  (post)unzip")
 	fmt.Printf("%10d %10s   %7.3fs  %10.2f %10s/s\n", data.TotalReqs, humanize.Bytes(uint64(data.TotBytesRead)), float64(data.AveTimeForReq)/nano, data.AveReqPerSec, humanize.Bytes(uint64(data.AveKBytesPerSec)))
 	boldPrintln("   Slowest    Fastest   Timeouts  TotErrors")
@@ -471,20 +462,21 @@ func printData(data *queue.AggData) {
 	fmt.Println("")
 }
 
-func printSummary(result *queue.RegionsAggData) {
-	if len(result.Regions) == 0 {
+func printSummary(results result.LambdaResults) {
+	if len(results.Regions()) == 0 {
 		boldPrintln("No results received")
 		return
 	}
 	boldPrintln("Regional results")
 	fmt.Println("")
 
-	for region, data := range result.Regions {
+	regionsData := results.RegionsData()
+	for _, region := range results.Regions() {
 		fmt.Println("Region: " + region)
-		printData(&data)
+		printData(regionsData[region])
 	}
 
-	overall := queue.SumRegionResults(result)
+	overall := results.SumAllLambdas()
 
 	fmt.Println("")
 	boldPrintln("Overall")
@@ -498,20 +490,16 @@ func printSummary(result *queue.RegionsAggData) {
 	fmt.Println("")
 }
 
-func saveJSONSummary(path string, result *queue.RegionsAggData) {
-	if len(result.Regions) == 0 {
+func saveJSONSummary(path string, results result.LambdaResults) {
+	if len(results.Regions()) == 0 {
 		return
 	}
-	results := make(map[string]queue.AggData)
+	dataForRegions := results.RegionsData()
 
-	for region, data := range result.Regions {
-		results[region] = data
-	}
+	overall := results.SumAllLambdas()
 
-	overall := queue.SumRegionResults(result)
-
-	results["overall"] = *overall
-	b, err := json.MarshalIndent(results, "", "  ")
+	dataForRegions["overall"] = overall
+	b, err := json.MarshalIndent(dataForRegions, "", "  ")
 	if err != nil {
 		fmt.Println(err)
 		return

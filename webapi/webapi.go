@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/goadapp/goad/goad"
-	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/result"
 	"github.com/gorilla/websocket"
 )
 
@@ -23,7 +23,7 @@ func main() {
 	Serve()
 }
 
-func jsonFromRegionsAggData(result queue.RegionsAggData) (string, error) {
+func jsonFromRegionsAggData(result *result.LambdaResults) (string, error) {
 	data, jsonerr := json.Marshal(result)
 	if jsonerr != nil {
 		return "", jsonerr
