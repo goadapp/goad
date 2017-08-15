@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/goadapp/goad/api"
+	uuid "github.com/satori/go.uuid"
 )
 
 // Adapter is used to send messages to the queue
@@ -103,8 +104,10 @@ func (adaptor Adapter) SendResult(result api.RunnerResult) error {
 		panic(jsonerr)
 	}
 	params := &sqs.SendMessageInput{
-		MessageBody: aws.String(str),
-		QueueUrl:    aws.String(adaptor.QueueURL),
+		MessageBody:            aws.String(str),
+		MessageGroupId:         aws.String("goad-lambda"),
+		MessageDeduplicationId: aws.String(uuid.NewV4().String()),
+		QueueUrl:               aws.String(adaptor.QueueURL),
 	}
 	_, err := adaptor.Client.SendMessage(params)
 

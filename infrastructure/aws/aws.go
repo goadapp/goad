@@ -344,13 +344,16 @@ func (infra *AwsInfrastructure) createSQSQueue() (url string, err error) {
 	svc := sqs.New(session.New(), infra.config)
 
 	resp, err := svc.CreateQueue(&sqs.CreateQueueInput{
-		QueueName: aws.String("goad-" + uuid.NewV4().String()),
+		QueueName: aws.String("goad-" + uuid.NewV4().String() + ".fifo"),
+		Attributes: map[string]*string{
+			"FifoQueue": aws.String("true"),
+		},
 	})
 
 	if err != nil {
 		return "", err
 	}
-
+	fmt.Println(*resp.QueueUrl)
 	return *resp.QueueUrl, nil
 }
 
