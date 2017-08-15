@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"time"
@@ -54,16 +53,16 @@ func (infra *AwsInfrastructure) Run(args infrastructure.InvokeArgs) {
 func (infra *AwsInfrastructure) invokeLambda(args interface{}) {
 	svc := lambda.New(session.New(), infra.config)
 
-	svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	svc.Invoke(&lambda.InvokeInput{
 		FunctionName: aws.String("goad"),
-		InvokeArgs:   toJSONReadSeeker(args),
+		Payload:      toByteArray(args),
 	})
 }
 
-func toJSONReadSeeker(args interface{}) io.ReadSeeker {
+func toByteArray(args interface{}) []byte {
 	j, err := json.Marshal(args)
 	handleErr(err)
-	return bytes.NewReader(j)
+	return j
 }
 
 func handleErr(err error) {

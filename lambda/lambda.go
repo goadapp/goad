@@ -547,9 +547,9 @@ func (l *goadLambda) forkNewLambda() {
 
 	j, _ := json.Marshal(args)
 
-	output, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	output, err := svc.Invoke(&lambda.InvokeInput{
 		FunctionName: aws.String("goad"),
-		InvokeArgs:   bytes.NewReader(j),
+		Payload:      j,
 	})
 	fmt.Println(output)
 	fmt.Println(err)
