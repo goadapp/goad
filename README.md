@@ -180,9 +180,9 @@ concurrency level with high throughput.
 
 ## License & Copyright
 
-MIT License. Copyright 2016 [Joao Cardoso][], [Matias Korhonen][], [Rasmus Sten][], and [Stephen Sykes][].
-Copyright (C) 2016 by [Guido Serra][] [OLX, a Naspers company](http://joinolx.com)
-Copyright (C) 2017 by [Walter Marta][], [Clemens Wältken][] [Edrans/OLX](http://edrans.com)
+MIT License. Copyright 2016 [Joao Cardoso][], [Matias Korhonen][], [Rasmus Sten][], and [Stephen Sykes][]. <br/>
+Copyright (C) 2016 by [Guido Serra][] [OLX, a Naspers company](http://joinolx.com). <br/>
+Copyright (C) 2017 by [Walter Marta][], [Clemens Wältken][] [Edrans/OLX](http://edrans.com).
 
 See the LICENSE file for more details.
 
