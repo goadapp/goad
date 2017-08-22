@@ -12,7 +12,7 @@ import (
 	"github.com/goadapp/goad/infrastructure"
 	"github.com/goadapp/goad/infrastructure/aws"
 	"github.com/goadapp/goad/infrastructure/docker"
-	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/result"
 )
 
 // TestConfig type
@@ -57,9 +57,10 @@ var supportedRegions = []string{
 
 // Test type
 type Test struct {
-	Config  *TestConfig
-	infra   infrastructure.Infrastructure
-	lambdas int
+	Config    *TestConfig
+	infra     infrastructure.Infrastructure
+	lambdas   int
+	currentID int
 }
 
 // NewTest returns a configured Test
@@ -72,7 +73,7 @@ func NewTest(config *TestConfig) (*Test, error) {
 }
 
 // Start a test
-func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
+func (t *Test) Start() (<-chan *result.LambdaResults, func()) {
 	awsConfig := aws.NewConfig().WithRegion(t.Config.Regions[0])
 
 	if t.Config.RunDocker {
@@ -87,10 +88,10 @@ func (t *Test) Start() (<-chan queue.RegionsAggData, func()) {
 	t.lambdas = numberOfLambdas(t.Config.Concurrency, len(t.Config.Regions))
 	t.invokeLambdas()
 
-	results := make(chan queue.RegionsAggData)
+	results := make(chan *result.LambdaResults)
 
 	go func() {
-		for result := range queue.Aggregate(awsConfig, t.infra.GetQueueURL(), t.Config.Requests, t.lambdas) {
+		for result := range result.Aggregate(awsConfig, t.infra.GetQueueURL(), t.Config.Requests, t.lambdas) {
 			results <- result
 		}
 		close(results)
@@ -121,8 +122,10 @@ func (t *Test) invokeLambdas() {
 			fmt.Sprintf("--frequency=%s", reportingFrequency(t.lambdas).String()),
 			fmt.Sprintf("--aws-region=%s", region),
 			fmt.Sprintf("--method=%s", c.Method),
+			fmt.Sprintf("--runner-id=%d", t.currentID),
 			fmt.Sprintf("--body=%s", c.Body),
 		}
+		t.currentID++
 		for _, v := range t.Config.Headers {
 			args = append(args, fmt.Sprintf("--header=%s", v))
 		}

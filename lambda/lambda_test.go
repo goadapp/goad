@@ -17,7 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
-	"github.com/goadapp/goad/queue"
+	"github.com/goadapp/goad/api"
 )
 
 var port int
@@ -33,9 +33,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestRequestMetric(t *testing.T) {
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	agg := metric.aggregatedResults
-	if agg.TotalReqs != 0 {
+	if agg.RequestCount != 0 {
 		t.Error("totalRequestsFinished should be initialized with 0")
 	}
 	if metric.requestCountSinceLastSend != 0 {
@@ -59,7 +59,7 @@ func TestRequestMetric(t *testing.T) {
 	if metric.requestTimeTotal != 0 {
 		t.Error("without requests this field should be 0")
 	}
-	if agg.TotBytesRead != 0 {
+	if agg.BytesRead != 0 {
 		t.Error("without requests this field should be 0")
 	}
 }
@@ -67,7 +67,7 @@ func TestRequestMetric(t *testing.T) {
 func TestAddRequestStatus(t *testing.T) {
 	success := 200
 	successStr := strconv.Itoa(success)
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	result := &requestResult{
 		Status: success,
 	}
@@ -86,7 +86,7 @@ func TestAddRequest(t *testing.T) {
 	elapsedFirst := int64(100)
 	elapsedLast := int64(300)
 
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	result := &requestResult{
 		Time:             400,
 		ElapsedFirstByte: elapsedFirst,
@@ -100,7 +100,7 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != result.Time+100 {
 		t.Error("metrics should update lastRequestTime")
 	}
-	if metric.aggregatedResults.TotalReqs != 1 {
+	if metric.aggregatedResults.RequestCount != 1 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 1 {
@@ -110,13 +110,13 @@ func TestAddRequest(t *testing.T) {
 	result.Time = 800
 	metric.addRequest(result)
 	agg := metric.aggregatedResults
-	if agg.TotalReqs != 2 {
+	if agg.RequestCount != 2 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 2 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if agg.TotBytesRead != 2*bytes {
+	if agg.BytesRead != 2*bytes {
 		t.Error("metrics should add successful requests Bytes to totalBytesRead")
 	}
 	if metric.requestTimeTotal != 700 {
@@ -139,13 +139,13 @@ func TestAddRequest(t *testing.T) {
 	}
 	result.Timeout = true
 	metric.addRequest(result)
-	if agg.TotalReqs != 3 {
+	if agg.RequestCount != 3 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 3 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if agg.TotBytesRead != 2*bytes {
+	if agg.BytesRead != 2*bytes {
 		t.Error("metrics should not add timedout requests Bytes to totalBytesRead")
 	}
 	if metric.requestTimeTotal != 700 {
@@ -160,19 +160,19 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != 800+100 {
 		t.Error("metrics should update lastRequestsTime")
 	}
-	if agg.TotalTimedOut != 1 {
+	if agg.TimedOut != 1 {
 		t.Error("metrics should update TotalTimeOut")
 	}
 	result.ConnectionError = true
 	result.Timeout = false
 	metric.addRequest(result)
-	if agg.TotalReqs != 4 {
+	if agg.RequestCount != 4 {
 		t.Error("metrics should update totalRequestsFinished")
 	}
 	if metric.requestCountSinceLastSend != 4 {
 		t.Error("metrics should upate totalRequestsFinished")
 	}
-	if agg.TotBytesRead != 2*bytes {
+	if agg.BytesRead != 2*bytes {
 		t.Error("metrics should not add timedout requests Bytes to totalBytesRead")
 	}
 	if metric.requestTimeTotal != 700 {
@@ -187,25 +187,25 @@ func TestAddRequest(t *testing.T) {
 	if metric.lastRequestTime != 800+100 {
 		t.Error("metrics should update lastRequestsTime")
 	}
-	if agg.TotalConnectionError != 1 {
+	if agg.ConnectionErrors != 1 {
 		t.Error("metrics should update TotalConnectionError")
 	}
 }
 
 func TestResetAndKeepTotalReqs(t *testing.T) {
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	agg := metric.aggregatedResults
-	agg.TotalReqs = 7
+	agg.RequestCount = 7
 	metric.firstRequestTime = 123
 	metric.lastRequestTime = 123
 	metric.requestCountSinceLastSend = 123
 	metric.requestTimeTotal = 123
 	metric.timeToFirstTotal = 123
-	agg.TotBytesRead = 123
+	agg.BytesRead = 123
 
 	metric.resetAndKeepTotalReqs()
 	agg = metric.aggregatedResults
-	if agg.TotalReqs != 0 {
+	if agg.RequestCount != 0 {
 		t.Error("TotalReqs should be reset to 0")
 	}
 	if metric.requestCountSinceLastSend != 0 {
@@ -232,7 +232,7 @@ func TestResetAndKeepTotalReqs(t *testing.T) {
 	if metric.timeToFirstTotal != 0 {
 		t.Error("timeToFirstTotal should be reset")
 	}
-	if agg.TotBytesRead != 0 {
+	if agg.BytesRead != 0 {
 		t.Error("totalBytesRead should be reset")
 	}
 }
@@ -242,7 +242,7 @@ func TestMetricsAggregate(t *testing.T) {
 	elapsedFirst := int64(100)
 	elapsedLast := int64(300)
 
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	result := &requestResult{
 		Time:             10000000,
 		Elapsed:          10000000,
@@ -254,12 +254,6 @@ func TestMetricsAggregate(t *testing.T) {
 	}
 	metric.aggregate()
 	agg := metric.aggregatedResults
-	if agg.AveKBytesPerSec != 0 {
-		t.Errorf("should result in 0, but was: %f", agg.AveKBytesPerSec)
-	}
-	if agg.AveReqPerSec != 0 {
-		t.Errorf("should result in 0, but was: %f", agg.AveReqPerSec)
-	}
 	if agg.AveTimeToFirst != 0 {
 		t.Errorf("should result in 0, but was: %d", agg.AveTimeToFirst)
 	}
@@ -271,12 +265,6 @@ func TestMetricsAggregate(t *testing.T) {
 		metric.addRequest(result)
 	}
 	metric.aggregate()
-	if agg.AveKBytesPerSec != 100000.0 {
-		t.Errorf("should result in average speed of 100000KB/s but was %f KB/s", agg.AveKBytesPerSec)
-	}
-	if agg.AveReqPerSec != 100 {
-		t.Errorf("should result in average of 100 req/s but was %f req/s", agg.AveReqPerSec)
-	}
 	if agg.AveTimeToFirst != 100 {
 		t.Errorf("should result in 100 but was %d", agg.AveTimeToFirst)
 	}
@@ -301,11 +289,12 @@ func TestMetricsAggregate(t *testing.T) {
 }
 
 type TestResultSender struct {
-	sentResults []queue.AggData
+	sentResults []api.RunnerResult
 }
 
-func (s *TestResultSender) SendResult(data queue.AggData) {
+func (s *TestResultSender) SendResult(data api.RunnerResult) error {
 	s.sentResults = append(s.sentResults, data)
+	return nil
 }
 
 type mockLambdaClient struct {
@@ -345,7 +334,7 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 	}
 	settings.RequestParameters.URL = urlStr
 	sender := &TestResultSender{}
-	lambda := NewLambda(settings)
+	lambda := newLambda(settings)
 	lambda.resultSender = sender
 	mockClient := &mockLambdaClient{}
 	lambda.lambdaService = mockClient
@@ -370,7 +359,7 @@ func TestQuitOnLambdaTimeout(t *testing.T) {
 	if sender.sentResults[0].Finished == true {
 		t.Error("lambda should not have finished all it's requests")
 	}
-	reqs := sender.sentResults[0].TotalReqs
+	reqs := sender.sentResults[0].RequestCount
 	if reqs != 2 {
 		t.Errorf("should have completed 2 requests yet but registered %d.", reqs)
 	}
@@ -389,7 +378,7 @@ func TestMetricSendResults(t *testing.T) {
 		ConnectionError:  false,
 	}
 
-	metric := NewRequestMetric("us-east-1")
+	metric := NewRequestMetric("us-east-1", 0)
 	sender := &TestResultSender{}
 
 	metric.addRequest(result)
@@ -445,7 +434,7 @@ func runLoadTestWith(t *testing.T, requestCount int, stresstestTimeout int, conc
 	}
 	settings.RequestParameters.URL = urlStr
 	sender := &TestResultSender{}
-	lambda := NewLambda(settings)
+	lambda := newLambda(settings)
 	lambda.resultSender = sender
 	function := &lambdaTestFunction{
 		lambda: lambda,
@@ -459,8 +448,8 @@ func runLoadTestWith(t *testing.T, requestCount int, stresstestTimeout int, conc
 	if results.Finished != true {
 		t.Error("the lambda should have finished it's results")
 	}
-	if results.TotalReqs != requestCount && requestCount > 0 {
-		t.Errorf("the lambda generated results for %d request, expected %d", results.TotalReqs, requestCount)
+	if results.RequestCount != requestCount && requestCount > 0 {
+		t.Errorf("the lambda generated results for %d request, expected %d", results.RequestCount, requestCount)
 	}
 }
 
