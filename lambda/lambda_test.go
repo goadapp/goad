@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -302,13 +301,11 @@ type mockLambdaClient struct {
 	input *invokeArgs
 }
 
-func (m *mockLambdaClient) InvokeAsync(in *lambda.InvokeAsyncInput) (*lambda.InvokeAsyncOutput, error) {
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(in.InvokeArgs)
+func (m *mockLambdaClient) Invoke(in *lambda.InvokeInput) (*lambda.InvokeOutput, error) {
 	args := &invokeArgs{}
-	json.Unmarshal(buf.Bytes(), args)
+	json.Unmarshal(in.Payload, args)
 	m.input = args
-	return &lambda.InvokeAsyncOutput{}, nil
+	return &lambda.InvokeOutput{}, nil
 }
 
 func TestQuitOnLambdaTimeout(t *testing.T) {

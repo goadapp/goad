@@ -10,6 +10,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/goadapp/goad/goad/types"
+	"github.com/goadapp/goad/infrastructure/aws/sqsadapter"
+
 	"github.com/Songmu/prompter"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -18,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/goadapp/goad/infrastructure"
+	"github.com/goadapp/goad/result"
 	"github.com/goadapp/goad/version"
 	uuid "github.com/satori/go.uuid"
 )
@@ -29,16 +33,21 @@ var (
 // AwsInfrastructure manages the resource creation and updates necessary to use
 // Goad.
 type AwsInfrastructure struct {
-	config   *aws.Config
-	queueURL string
-	regions  []string
+	config    *types.TestConfig
+	awsConfig *aws.Config
+	queueURL  string
 }
 
 // New creates the required infrastructure to run the load tests in Lambda
 // functions.
-func New(regions []string, config *aws.Config) infrastructure.Infrastructure {
-	infra := &AwsInfrastructure{config: config, regions: regions}
+func New(config *types.TestConfig) infrastructure.Infrastructure {
+	awsConfig := aws.NewConfig().WithRegion(config.Regions[0])
+	infra := &AwsInfrastructure{config: config, awsConfig: awsConfig}
 	return infra
+}
+
+func (infra *AwsInfrastructure) GetSettings() *types.TestConfig {
+	return infra.config
 }
 
 // GetQueueURL returns the URL of the SQS queue to use for the load test session
@@ -46,12 +55,37 @@ func (infra *AwsInfrastructure) GetQueueURL() string {
 	return infra.queueURL
 }
 
+func (infra *AwsInfrastructure) Receive(results chan *result.LambdaResults) {
+	defer close(results)
+	data := result.SetupRegionsAggData(infra.config.Lambdas)
+	adaptor := sqsadapter.New(infra.awsConfig, infra.GetQueueURL())
+
+	timeoutStart := time.Now()
+	for {
+		lambdaResult := adaptor.Receive()
+		if lambdaResult != nil {
+			lambdaAggregate := &data.Lambdas[lambdaResult.RunnerID]
+			result.AddResult(lambdaAggregate, lambdaResult)
+			results <- data
+			if data.AllLambdasFinished() {
+				break
+			}
+			timeoutStart = time.Now()
+		} else {
+			waited := time.Since(timeoutStart)
+			if waited.Seconds() > 20 {
+				break
+			}
+		}
+	}
+}
+
 func (infra *AwsInfrastructure) Run(args infrastructure.InvokeArgs) {
 	infra.invokeLambda(args)
 }
 
 func (infra *AwsInfrastructure) invokeLambda(args interface{}) {
-	svc := lambda.New(session.New(), infra.config)
+	svc := lambda.New(session.New(), infra.awsConfig)
 
 	svc.Invoke(&lambda.InvokeInput{
 		FunctionName: aws.String("goad"),
@@ -77,15 +111,15 @@ func (infra *AwsInfrastructure) teardown() {
 	infra.removeSQSQueue()
 }
 
-func (infra *AwsInfrastructure) Setup(settings infrastructure.Settings) (func(), error) {
+func (infra *AwsInfrastructure) Setup() (func(), error) {
 	roleArn, err := infra.createIAMLambdaRole("goad-lambda-role")
 	if err != nil {
 		return nil, err
 	}
 
 	var zipBuffer bytes.Buffer
-	if settings.RunnerPath != "" {
-		runnerPath := fmt.Sprintf("%s/", path.Clean(settings.RunnerPath))
+	if infra.config.RunnerPath != "" {
+		runnerPath := fmt.Sprintf("%s/", path.Clean(infra.config.RunnerPath))
 		err = infrastructure.Zipit(runnerPath, &zipBuffer)
 		if err != nil {
 			return nil, err
@@ -98,7 +132,7 @@ func (infra *AwsInfrastructure) Setup(settings infrastructure.Settings) (func(),
 		zipBuffer = *bytes.NewBuffer(assetBytes)
 	}
 
-	for _, region := range infra.regions {
+	for _, region := range infra.config.Regions {
 		err = infra.createOrUpdateLambdaFunction(region, roleArn, zipBuffer.Bytes())
 		if err != nil {
 			return nil, err
@@ -255,7 +289,7 @@ func lambdaAliasExists(svc *lambda.Lambda) (bool, error) {
 }
 
 func (infra *AwsInfrastructure) createIAMLambdaRole(roleName string) (arn string, err error) {
-	svc := iam.New(session.New(), infra.config)
+	svc := iam.New(session.New(), infra.awsConfig)
 
 	resp, err := svc.GetRole(&iam.GetRoleInput{
 		RoleName: aws.String(roleName),
@@ -300,7 +334,7 @@ func CheckRoleDate(role *iam.Role) {
 }
 
 func (infra *AwsInfrastructure) createIAMLambdaRolePolicy(roleName string) error {
-	svc := iam.New(session.New(), infra.config)
+	svc := iam.New(session.New(), infra.awsConfig)
 
 	_, err := svc.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyDocument: aws.String(`{
@@ -340,7 +374,7 @@ func (infra *AwsInfrastructure) createIAMLambdaRolePolicy(roleName string) error
 }
 
 func (infra *AwsInfrastructure) createSQSQueue() (url string, err error) {
-	svc := sqs.New(session.New(), infra.config)
+	svc := sqs.New(session.New(), infra.awsConfig)
 
 	resp, err := svc.CreateQueue(&sqs.CreateQueueInput{
 		QueueName: aws.String("goad-" + uuid.NewV4().String() + ".fifo"),
@@ -352,12 +386,11 @@ func (infra *AwsInfrastructure) createSQSQueue() (url string, err error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println(*resp.QueueUrl)
 	return *resp.QueueUrl, nil
 }
 
 func (infra *AwsInfrastructure) removeSQSQueue() {
-	svc := sqs.New(session.New(), infra.config)
+	svc := sqs.New(session.New(), infra.awsConfig)
 
 	svc.DeleteQueue(&sqs.DeleteQueueInput{
 		QueueUrl: aws.String(infra.queueURL),

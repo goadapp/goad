@@ -1,4 +1,4 @@
-package sqs
+package sqsadapter
 
 import (
 	"encoding/json"
@@ -23,7 +23,7 @@ type DummyAdapter struct {
 }
 
 // NewSQSAdapter returns a new sqs adator object
-func NewSQSAdapter(awsConfig *aws.Config, queueURL string) *Adapter {
+func New(awsConfig *aws.Config, queueURL string) *Adapter {
 	return &Adapter{getClient(awsConfig), queueURL}
 }
 

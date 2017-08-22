@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/goadapp/goad/goad"
+	"github.com/goadapp/goad/goad/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +15,6 @@ const testDataFile = "testdata/test-config.ini"
 
 var expectedRegions = []string{"us-east-1", "eu-west-1"}
 var expectedHeader = []string{"cache-control: no-cache", "auth-token: YOUR-SECRET-AUTH-TOKEN", "base64-header: dGV4dG8gZGUgcHJ1ZWJhIA=="}
-var expectedTask = goad.CustomTask{RunnerPath: "default-runner"}
 
 func TestLoadStandardConfig(t *testing.T) {
 	iniFile = testDataFile
@@ -24,7 +23,7 @@ func TestLoadStandardConfig(t *testing.T) {
 	assertConfigContent(config, t)
 }
 
-func assertConfigContent(config *goad.TestConfig, t *testing.T) {
+func assertConfigContent(config *types.TestConfig, t *testing.T) {
 	assert := assert.New(t)
 	assert.Equal("http://file-config.com/", config.URL, "Should load the URL")
 	assert.Equal("GET", config.Method, "Should load the request method")
@@ -38,7 +37,7 @@ func assertConfigContent(config *goad.TestConfig, t *testing.T) {
 	sort.Strings(expectedHeader)
 	sort.Strings(config.Headers)
 	assert.Equal(expectedHeader, config.Headers, "Should load the output file")
-	assert.Equal(expectedTask, config.Task, "Should load tasks configuration")
+	assert.Equal("default-runner", config.RunnerPath, "Should load runner path configuration")
 }
 
 func TestSaveConfig(t *testing.T) {

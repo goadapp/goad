@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/goadapp/goad/goad"
+	"github.com/goadapp/goad/goad/types"
 	"github.com/goadapp/goad/result"
 	"github.com/gorilla/websocket"
 )
@@ -82,7 +83,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config := goad.TestConfig{
+	config := &types.TestConfig{
 		URL:         url,
 		Concurrency: concurrency,
 		Requests:    requests,
@@ -92,7 +93,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 		Method:      "GET",
 	}
 
-	test, testerr := goad.NewTest(&config)
+	testerr := config.Check()
 	if testerr != nil {
 		http.Error(w, testerr.Error(), 400)
 		return
@@ -105,7 +106,7 @@ func serveResults(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
-	resultChan, teardown := test.Start()
+	resultChan, teardown := goad.Start(config)
 	defer teardown()
 
 	for result := range resultChan {

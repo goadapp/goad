@@ -1,4 +1,4 @@
-package sqs
+package sqsadapter
 
 import (
 	"testing"
@@ -9,6 +9,6 @@ import (
 
 func TestAdapterConstruction(t *testing.T) {
 	config := aws.NewConfig().WithRegion("somewhere")
-	testsqs := NewSQSAdapter(config, "testqueue")
+	testsqs := New(config, "testqueue")
 	assert.Equal(t, testsqs.QueueURL, "testqueue")
 }
