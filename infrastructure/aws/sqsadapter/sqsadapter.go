@@ -38,10 +38,10 @@ func getClient(awsConfig *aws.Config) *sqs.SQS {
 }
 
 // Receive a result, or timeout in 1 second
-func (adaptor Adapter) Receive() *api.RunnerResult {
+func (adaptor Adapter) Receive() []*api.RunnerResult {
 	params := &sqs.ReceiveMessageInput{
 		QueueUrl:            aws.String(adaptor.QueueURL),
-		MaxNumberOfMessages: aws.Int64(1),
+		MaxNumberOfMessages: aws.Int64(10),
 		VisibilityTimeout:   aws.Int64(1),
 		WaitTimeSeconds:     aws.Int64(1),
 	}
@@ -56,25 +56,34 @@ func (adaptor Adapter) Receive() *api.RunnerResult {
 		return nil
 	}
 
-	item := resp.Messages[0]
-
-	deleteParams := &sqs.DeleteMessageInput{
-		QueueUrl:      aws.String(adaptor.QueueURL),
-		ReceiptHandle: aws.String(*item.ReceiptHandle),
+	items := resp.Messages
+	results := make([]*api.RunnerResult, 0)
+	deleteEntries := make([]*sqs.DeleteMessageBatchRequestEntry, 0)
+	for _, item := range items {
+		result, jsonerr := resultFromJSON(*item.Body)
+		if jsonerr != nil {
+			fmt.Println(err.Error())
+			return nil
+		}
+		deleteEntries = append(deleteEntries, &sqs.DeleteMessageBatchRequestEntry{
+			Id:            aws.String(*item.MessageId),
+			ReceiptHandle: aws.String(*item.ReceiptHandle),
+		})
+		results = append(results, result)
 	}
-	_, delerr := adaptor.Client.DeleteMessage(deleteParams)
+
+	deleteParams := &sqs.DeleteMessageBatchInput{
+		Entries:  deleteEntries,
+		QueueUrl: aws.String(adaptor.QueueURL),
+	}
+	_, delerr := adaptor.Client.DeleteMessageBatch(deleteParams)
 
 	if delerr != nil {
-		fmt.Println(err.Error())
+		fmt.Println(delerr.Error())
 		return nil
 	}
 
-	result, jsonerr := resultFromJSON(*item.Body)
-	if jsonerr != nil {
-		fmt.Println(err.Error())
-		return nil
-	}
-	return result
+	return results
 }
 
 func resultFromJSON(str string) (*api.RunnerResult, error) {

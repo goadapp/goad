@@ -62,11 +62,13 @@ func (infra *AwsInfrastructure) Receive(results chan *result.LambdaResults) {
 
 	timeoutStart := time.Now()
 	for {
-		lambdaResult := adaptor.Receive()
-		if lambdaResult != nil {
-			lambdaAggregate := &data.Lambdas[lambdaResult.RunnerID]
-			result.AddResult(lambdaAggregate, lambdaResult)
-			results <- data
+		lambdaResults := adaptor.Receive()
+		if lambdaResults != nil {
+			for _, lambdaResult := range lambdaResults {
+				lambdaAggregate := &data.Lambdas[lambdaResult.RunnerID]
+				result.AddResult(lambdaAggregate, lambdaResult)
+				results <- data
+			}
 			if data.AllLambdasFinished() {
 				break
 			}

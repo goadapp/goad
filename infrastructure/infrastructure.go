@@ -67,7 +67,6 @@ func InvokeLambdas(inf Infrastructure) {
 }
 
 func Aggregate(i Infrastructure) chan *result.LambdaResults {
-	fmt.Println("AGGREGATE")
 	results := make(chan *result.LambdaResults)
 	go i.Receive(results)
 	return results
