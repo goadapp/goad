@@ -1,18 +1,12 @@
 package result
 
 import (
-	"encoding/json"
-	"log"
 	"math"
 	"sort"
-	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/goadapp/goad/api"
 	"github.com/goadapp/goad/goad/util"
-	"github.com/goadapp/goad/infrastructure/aws/sqs"
-	"github.com/streadway/amqp"
 )
 
 // AggData type
@@ -77,6 +71,16 @@ func (r *LambdaResults) ResultsForRegion(region string) []AggData {
 	return lambdasOfRegion
 }
 
+func SetupRegionsAggData(lambdaCount int) *LambdaResults {
+	lambdaResults := &LambdaResults{
+		Lambdas: make([]AggData, lambdaCount),
+	}
+	for i := 0; i < lambdaCount; i++ {
+		lambdaResults.Lambdas[i].Statuses = make(map[string]int)
+	}
+	return lambdaResults
+}
+
 func sumAggData(dataArray []AggData) AggData {
 	sum := AggData{
 		Fastest:  math.MaxInt64,
@@ -113,7 +117,7 @@ func sumAggData(dataArray []AggData) AggData {
 	return sum
 }
 
-func (r *LambdaResults) allLambdasFinished() bool {
+func (r *LambdaResults) AllLambdasFinished() bool {
 	for _, lambda := range r.Lambdas {
 		if !lambda.Finished {
 			return false
@@ -122,7 +126,7 @@ func (r *LambdaResults) allLambdasFinished() bool {
 	return true
 }
 
-func addResult(data *AggData, result *api.RunnerResult) {
+func AddResult(data *AggData, result *api.RunnerResult) {
 	initCountOk := int64(data.TotalReqs - data.TotalTimedOut - data.TotalConnectionError)
 	addCountOk := int64(result.RequestCount - result.TimedOut - result.ConnectionErrors)
 	totalCountOk := initCountOk + addCountOk
@@ -160,105 +164,4 @@ func addToTotalAverage(currentAvg, currentCount, addAvg, addCount int64) int64 {
 
 func addToTotalAverageFloat(currentAvg, currentCount, addAvg, addCount float64) float64 {
 	return ((currentAvg * currentCount) + (addAvg * addCount)) / (currentCount + addCount)
-}
-
-// Aggregate listens for results and sends totals, closing the channel when done
-func Aggregate(awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdaCount int) chan *LambdaResults {
-	results := make(chan *LambdaResults)
-	if strings.Contains(queueURL, "amqp://") {
-		go aggregateFromRabbitMQ(results, queueURL, totalExpectedRequests, lambdaCount)
-	} else {
-		go aggregateFromSqs(results, awsConfig, queueURL, totalExpectedRequests, lambdaCount)
-	}
-	return results
-}
-
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
-	}
-}
-
-func setupRegionsAggData(lambdaCount int) *LambdaResults {
-	lambdaResults := &LambdaResults{
-		Lambdas: make([]AggData, lambdaCount),
-	}
-	for i := 0; i < lambdaCount; i++ {
-		lambdaResults.Lambdas[i].Statuses = make(map[string]int)
-	}
-	return lambdaResults
-}
-
-func aggregateFromSqs(results chan *LambdaResults, awsConfig *aws.Config, queueURL string, totalExpectedRequests int, lambdaCount int) {
-	defer close(results)
-	data := setupRegionsAggData(lambdaCount)
-
-	adaptor := sqs.NewSQSAdapter(awsConfig, queueURL)
-	timeoutStart := time.Now()
-	for {
-		result := adaptor.Receive()
-		if result != nil {
-			lambdaAggregate := &data.Lambdas[result.RunnerID]
-			addResult(lambdaAggregate, result)
-			results <- data
-			if data.allLambdasFinished() {
-				break
-			}
-			timeoutStart = time.Now()
-		} else {
-			waited := time.Since(timeoutStart)
-			if waited.Seconds() > 20 {
-				break
-			}
-		}
-	}
-}
-
-func aggregateFromRabbitMQ(results chan *LambdaResults, queueURL string, totalExpectedRequests int, lambdaCount int) {
-	defer close(results)
-	data := setupRegionsAggData(lambdaCount)
-
-	// log.Printf("trying to connecto to: %s", queueURL)
-	conn, err := amqp.Dial(queueURL)
-	failOnError(err, "Failed to connect to RabbitMQ")
-	defer conn.Close()
-
-	ch, err := conn.Channel()
-	failOnError(err, "Failed to open a channel")
-	defer ch.Close()
-
-	q, err := ch.QueueDeclare(
-		"goad", // name
-		false,  // durable
-		false,  // delete when unused
-		false,  // exclusive
-		false,  // no-wait
-		nil,    // arguments
-	)
-	failOnError(err, "Failed to declare a queue")
-
-	msgs, err := ch.Consume(
-		q.Name, // queue
-		"cli",  // consumer
-		true,   // auto-ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
-	)
-	failOnError(err, "Failed to register a consumer")
-	// timeoutStart := time.Now()
-	for {
-		select {
-		case msg := <-msgs:
-			result := &api.RunnerResult{}
-			json.Unmarshal(msg.Body, result)
-			lambdaAggregate := data.Lambdas[result.RunnerID]
-			addResult(&lambdaAggregate, result)
-			results <- data
-		}
-		if data.allLambdasFinished() {
-			break
-		}
-	}
 }

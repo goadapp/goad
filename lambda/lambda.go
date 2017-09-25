@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/lambda/lambdaiface"
 	"github.com/goadapp/goad/api"
-	"github.com/goadapp/goad/infrastructure/aws/sqs"
+	"github.com/goadapp/goad/infrastructure/aws/sqsadapter"
 	"github.com/goadapp/goad/version"
 	"github.com/streadway/amqp"
 )
@@ -255,7 +255,7 @@ func (l *goadLambda) setupAwsSqsAdapter(config *aws.Config) {
 	if rabbit != "" {
 		l.resultSender = newRabbitMQAdapter(rabbit)
 	} else {
-		l.resultSender = sqs.NewSQSAdapter(config, l.Settings.SqsURL)
+		l.resultSender = sqsadapter.New(config, l.Settings.SqsURL)
 	}
 }
 
@@ -547,9 +547,9 @@ func (l *goadLambda) forkNewLambda() {
 
 	j, _ := json.Marshal(args)
 
-	output, err := svc.InvokeAsync(&lambda.InvokeAsyncInput{
+	output, err := svc.Invoke(&lambda.InvokeInput{
 		FunctionName: aws.String("goad"),
-		InvokeArgs:   bytes.NewReader(j),
+		Payload:      j,
 	})
 	fmt.Println(output)
 	fmt.Println(err)

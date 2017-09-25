@@ -20,6 +20,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/goadapp/goad/goad"
+	"github.com/goadapp/goad/goad/types"
 	"github.com/goadapp/goad/result"
 	"github.com/goadapp/goad/version"
 	"github.com/nsf/termbox-go"
@@ -79,12 +80,13 @@ func Run() {
 	app.VersionFlag.Short('V')
 
 	config := aggregateConfiguration()
-	test := createGoadTest(config)
+	err := config.Check()
+	goad.HandleErr(err)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM) // but interrupts from kbd are blocked by termbox
 
-	result := start(test, sigChan)
+	result := start(config, sigChan)
 	defer printSummary(result)
 	if config.Output != "" {
 		defer saveJSONSummary(*outputFile, result)
@@ -102,7 +104,7 @@ func writeConfigStream(writer io.Writer) {
 	stream.WriteTo(writer)
 }
 
-func aggregateConfiguration() *goad.TestConfig {
+func aggregateConfiguration() *types.TestConfig {
 	config := parseSettings()
 	applyDefaultsFromConfig(config)
 	config = parseCommandline()
@@ -110,7 +112,7 @@ func aggregateConfiguration() *goad.TestConfig {
 	return config
 }
 
-func applyDefaultsFromConfig(config *goad.TestConfig) {
+func applyDefaultsFromConfig(config *types.TestConfig) {
 	applyDefaultIfNotZero(bodyFlag, config.Body)
 	applyDefaultIfNotZero(concurrencyFlag, prepareInt(config.Concurrency))
 	applyDefaultIfNotZero(headersFlag, config.Headers)
@@ -191,8 +193,8 @@ func loadIni() *ini.File {
 	return cfg
 }
 
-func parseSettings() *goad.TestConfig {
-	config := &goad.TestConfig{}
+func parseSettings() *types.TestConfig {
+	config := &types.TestConfig{}
 	cfg := loadIni()
 	if cfg == nil {
 		return config
@@ -219,7 +221,7 @@ func parseSettings() *goad.TestConfig {
 	return config
 }
 
-func applyExtendedConfiguration(config *goad.TestConfig) {
+func applyExtendedConfiguration(config *types.TestConfig) {
 	cfg := loadIni()
 	if cfg == nil {
 		return
@@ -229,11 +231,7 @@ func applyExtendedConfiguration(config *goad.TestConfig) {
 	if err != nil {
 		return
 	}
-	task := goad.CustomTask{
-		// Name:       taskSection.Name(),
-		RunnerPath: runnerPathKey.String(),
-	}
-	config.Task = task
+	config.RunnerPath = runnerPathKey.String()
 }
 
 func foldHeaders(hash map[string]string) []string {
@@ -244,7 +242,7 @@ func foldHeaders(hash map[string]string) []string {
 	return headersList
 }
 
-func parseCommandline() *goad.TestConfig {
+func parseCommandline() *types.TestConfig {
 	args := os.Args[1:]
 
 	kingpin.MustParse(app.Parse(args))
@@ -262,7 +260,7 @@ func parseCommandline() *goad.TestConfig {
 
 	regionsArray := parseRegionsForBackwardsCompatibility(*regions)
 
-	config := &goad.TestConfig{}
+	config := &types.TestConfig{}
 	config.URL = *url
 	config.Concurrency = *concurrency
 	config.Requests = *requests
@@ -285,22 +283,13 @@ func parseRegionsForBackwardsCompatibility(regions []string) []string {
 	return parsedRegions
 }
 
-func createGoadTest(config *goad.TestConfig) *goad.Test {
-	test, err := goad.NewTest(config)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	return test
-}
-
-func start(test *goad.Test, sigChan chan os.Signal) result.LambdaResults {
+func start(test *types.TestConfig, sigChan chan os.Signal) result.LambdaResults {
 	var currentResult result.LambdaResults
-	resultChan, teardown := test.Start()
+	resultChan, teardown := goad.Start(test)
 	defer teardown()
 
 	platform := "AWS"
-	if test.Config.RunDocker {
+	if test.RunDocker {
 		platform = "Docker"
 	}
 	launchingOn := fmt.Sprintf("Launching on %s... (be patient)", platform)
@@ -351,10 +340,10 @@ outer:
 
 			y = 0
 			var percentDone float64
-			if test.Config.Requests > 0 {
-				percentDone = float64(totalReqs) / float64(test.Config.Requests)
+			if test.Requests > 0 {
+				percentDone = float64(totalReqs) / float64(test.Requests)
 			} else {
-				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Config.Timelimit), 1.0)
+				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Timelimit), 1.0)
 			}
 			drawProgressBar(percentDone, y)
 
