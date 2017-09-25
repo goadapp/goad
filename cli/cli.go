@@ -294,25 +294,28 @@ func start(test *types.TestConfig, sigChan chan os.Signal) result.LambdaResults 
 	}
 	launchingOn := fmt.Sprintf("Launching on %s... (be patient)", platform)
 
-	termbox.Init()
-	defer termbox.Close()
-	termbox.Sync()
-	renderString(0, 0, launchingOn, coldef, coldef)
-	renderLogo()
-	termbox.Flush()
+	var render bool
+	err := termbox.Init()
+	if err == nil {
+		render = true
+		defer termbox.Close()
+		termbox.Sync()
+		renderString(0, 0, launchingOn, coldef, coldef)
+		renderLogo()
+		termbox.Flush()
 
-	_, h := termbox.Size()
-	renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
-	termbox.Flush()
-
-	go func() {
-		for {
-			event := termbox.PollEvent()
-			if event.Key == 3 {
-				sigChan <- syscall.SIGINT
+		_, h := termbox.Size()
+		renderString(0, h-1, "Press ctrl-c to interrupt", coldef, coldef)
+		termbox.Flush()
+		go func() {
+			for {
+				event := termbox.PollEvent()
+				if event.Key == 3 {
+					sigChan <- syscall.SIGINT
+				}
 			}
-		}
-	}()
+		}()
+	}
 
 	startTime := time.Now()
 	firstTime := true
@@ -324,7 +327,7 @@ outer:
 				break outer
 			}
 			currentResult = *result
-			if firstTime {
+			if firstTime && render {
 				clearLogo()
 				firstTime = false
 			}
@@ -332,22 +335,26 @@ outer:
 			y := 3
 			totalReqs := 0
 			regionsData := currentResult.RegionsData()
-			for _, region := range currentResult.Regions() {
-				totalReqs += regionsData[region].TotalReqs
-				y = renderRegion(regionsData[region], y)
-				y++
+			if render {
+				for _, region := range currentResult.Regions() {
+					totalReqs += regionsData[region].TotalReqs
+					y = renderRegion(regionsData[region], y)
+					y++
+				}
 			}
 
-			y = 0
-			var percentDone float64
-			if test.Requests > 0 {
-				percentDone = float64(totalReqs) / float64(test.Requests)
-			} else {
-				percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Timelimit), 1.0)
-			}
-			drawProgressBar(percentDone, y)
+			if render {
+				y = 0
+				var percentDone float64
+				if test.Requests > 0 {
+					percentDone = float64(totalReqs) / float64(test.Requests)
+				} else {
+					percentDone = math.Min(float64(time.Since(startTime).Seconds())/float64(test.Timelimit), 1.0)
+				}
+				drawProgressBar(percentDone, y)
 
-			termbox.Flush()
+				termbox.Flush()
+			}
 
 		case <-sigChan:
 			break outer
