@@ -63,31 +63,27 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 ```sh
 # Get help:
 $ goad --help
-usage: goad [<flags>] <url>
+usage: goad [<flags>] [<url>]
 
 An AWS Lambda powered load testing tool
 
 Flags:
   -h, --help                     Display usage information (this message)
-  -n, --requests=1000            Number of requests to perform. Set to 0 in
-                                 combination with a specified timelimit allows
-                                 for unlimited requests for the specified time.
+  -n, --requests=2000            Number of requests to perform. Set to 0 in combination with a specified timelimit allows for unlimited requests for the specified time.
   -c, --concurrency=10           Number of multiple requests to make at a time
   -t, --timelimit=3600           Seconds to max. to spend on benchmarking
   -s, --timeout=15               Seconds to max. wait for each response
-  -H, --header=HEADER ...        Add Arbitrary header line, eg.
-                                 'Accept-Encoding: gzip' (repeatable)
-      --region=us-east-1... ...  AWS regions to run in. Repeat flag to run in
-                                 more then one region. (repeatable)
-      --output-json=OUTPUT-JSON  Optional path to file for JSON result storage
+  -H, --header=HEADER ...        Add Arbitrary header line, eg. 'Accept-Encoding: gzip' (repeatable)
   -m, --method="GET"             HTTP method
       --body=BODY                HTTP request body
-      --create-ini-template      create sample configuration file "goad.ini"
-                                 in current working directory
+      --json-output=JSON-OUTPUT  Optional path to file for JSON result storage
+      --region=us-east-1 ...     AWS regions to run in. Repeat flag to run in more then one region. (repeatable)
+      --run-docker               execute in docker container instead of aws lambda
+      --create-ini-template      create sample configuration file "goad.ini" in current working directory
   -V, --version                  Show application version.
 
 Args:
-  <url>  [http[s]://]hostname[:port]/path optional if defined in goad.ini
+  [<url>]  [http[s]://]hostname[:port]/path optional if defined in goad.ini
 
 # For example:
 $ goad -n 1000 -c 5 -u https://example.com
