@@ -263,8 +263,8 @@ func (i *dockerInfrastructure) Receive(results chan *result.LambdaResults) {
 		case msg := <-msgs:
 			lambdaResult := &api.RunnerResult{}
 			json.Unmarshal(msg.Body, lambdaResult)
-			lambdaAggregate := data.Lambdas[lambdaResult.RunnerID]
-			result.AddResult(&lambdaAggregate, lambdaResult)
+			lambdaAggregate := &data.Lambdas[lambdaResult.RunnerID]
+			result.AddResult(lambdaAggregate, lambdaResult)
 			results <- data
 		}
 		if data.AllLambdasFinished() {
