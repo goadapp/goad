@@ -580,6 +580,10 @@ func (l *goadLambda) getInvokeArgsForFork() invokeArgs {
 		fmt.Sprintf("--method=%s", settings.RequestParameters.RequestMethod),
 		fmt.Sprintf("--body=%s", settings.RequestParameters.RequestBody),
 	}
+	for _, v := range settings.RequestParameters.RequestHeaders {
+		args.Flags = append(args.Flags, fmt.Sprintf("--header=%s", v))
+	}
+
 	args.Flags = append(args.Flags, fmt.Sprintf("%s", params.URL))
 	fmt.Println(args.Flags)
 	return args
