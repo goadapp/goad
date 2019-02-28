@@ -7,6 +7,8 @@ go:
   - 1.8
 
 before_install:
+  - echo 'deb http://archive.ubuntu.com/ubuntu/ xenial main universe' | sudo tee -a /etc/apt/sources.list
+  - sudo apt-get update
   - sudo apt install -y alien
 
 install:
