@@ -1,5 +1,4 @@
-dist: trusty
-sudo: required
+dist: xenial
 
 language: go
 go_import_path: github.com/goadapp/goad
@@ -7,8 +6,10 @@ go_import_path: github.com/goadapp/goad
 go:
   - 1.8
 
+before_install:
+  - sudo apt install -y alien
+
 install:
-  - sudo apt install alien
   - go get github.com/jteeuwen/go-bindata/...
 
 script:
