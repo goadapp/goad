@@ -19,10 +19,10 @@ var supportedRegions = []string{
 	"us-west-2",      // Oregon
 	"eu-west-1",      // Ireland
 	"eu-central-1",   // Frankfurt
-	"ap-northeast-1", // Sydney
+	"ap-northeast-1", // Tokyo
 	"ap-northeast-2", // Seoul
 	"ap-southeast-1", // Singapore
-	"ap-southeast-2", // Tokio
+	"ap-southeast-2", // Sydney
 	"sa-east-1",      // Sao Paulo
 }
 
