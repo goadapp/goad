@@ -86,7 +86,7 @@ Args:
   [<url>]  [http[s]://]hostname[:port]/path optional if defined in goad.ini
 
 # For example:
-$ goad -n 1000 -c 5 -u https://example.com
+$ goad -n 1000 -c 5 https://example.com
 ```
 
 Note that sites such as https://google.com that employ redirects cannot be tested correctly at this time.
