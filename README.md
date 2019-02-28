@@ -60,7 +60,7 @@ Goad will read your credentials from `~/.aws/credentials` or from the `AWS_ACCES
 
 ### CLI
 
-```sh
+```
 # Get help:
 $ goad --help
 usage: goad [<flags>] [<url>]
