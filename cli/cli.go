@@ -326,6 +326,7 @@ outer:
 			if !ok {
 				break outer
 			}
+			result.Lock()
 			currentResult = *result
 			if firstTime && render {
 				clearLogo()
@@ -341,9 +342,7 @@ outer:
 					y = renderRegion(regionsData[region], y)
 					y++
 				}
-			}
 
-			if render {
 				y = 0
 				var percentDone float64
 				if test.Requests > 0 {
@@ -355,7 +354,7 @@ outer:
 
 				termbox.Flush()
 			}
-
+			result.Unlock()
 		case <-sigChan:
 			break outer
 		}

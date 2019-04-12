@@ -66,7 +66,9 @@ func (infra *AwsInfrastructure) Receive(results chan *result.LambdaResults) {
 		if lambdaResults != nil {
 			for _, lambdaResult := range lambdaResults {
 				lambdaAggregate := &data.Lambdas[lambdaResult.RunnerID]
+				data.Lock()
 				result.AddResult(lambdaAggregate, lambdaResult)
+				data.Unlock()
 				results <- data
 			}
 			if data.AllLambdasFinished() {
