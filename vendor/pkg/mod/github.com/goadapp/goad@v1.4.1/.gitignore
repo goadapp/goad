@@ -1,0 +1,20 @@
+site/node_modules
+site/dist
+data/lambda.zip
+data/lambda/goad-lambda
+infrastructure/bindata.go
+site/Upstatic
+build/
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+
+*.DS_Store
+*.olx
+*.gz
+Vagrantfile
+.vagrant
+*.log
+.idea

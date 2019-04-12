@@ -1,0 +1,30 @@
+dist: trusty
+sudo: required
+
+language: go
+go_import_path: github.com/goadapp/goad
+
+go:
+  - 1.8
+
+install:
+  - go get github.com/jteeuwen/go-bindata/...
+
+script:
+  - make test
+  - make all-zip
+
+deploy:
+  provider: releases
+  api_key:
+    secure: klr+zpcY0IsO4Mh302pMHRHk2xXZqvpRQyzMJ4/z/oV07sJJE7pjK+/FxOINFhQaDXaKQm3L47Kiv9akq5xNQik3b8MqFeGW91sou7azHnwl3qDMTSFDXSDlpTX6dCfs7nG1ywKTzHzf09P2cOo6+F0k88kkFwQawnenqwz0hn2TWhblWB3F6bAwDyvMOEg3rZK8dqIVFAqgHI8SPCVhcMjDQaJcaWE852yOUExEFSxH8UtG8ei0KKLG3+oYoLIuyakosmDoAYdLR0ukGas9SWvEvh5P3hnfMhySsxbn3cRQi8Ojw1PspZZatNJZY0i6Ugek6puaRHSMsnY4yCXdduAGyl6cV2DxjUxgKufiV40GduX9R8KF1u16VmBrFkxeeVVBdCXlVhFH9dmTKfczfa7UiXZ0PxopPiRz61qUhbC7swd8f1oUXUcOMtIoN0qohWLPvu1Lm3VBefHm1X3MQRP13RxnIWDzeukJnPFluYlithE3If+MLax9LBrRxsw4qwMY1qLUgXglUwtuQtSzG1/laAkzZn/SeddOZ0JGjmYQEmchjFSyGdiNEytHrG+CSenJyOlNqPGMlS/tlJQ0sG7jH/4lrG3v6IcxVrrfPPpgYx7Ny2FjSzsMFfSe20xzNT5Hefxx/DSASRAVETPtne6alS2W7fKdgQuC2leevNg=
+  file:
+    - build/zip/goad-linux-x86-64.zip
+    - build/zip/goad-linux-x86.zip
+    - build/zip/goad-osx-x86-64.zip
+    - build/zip/goad-windows-x86-64.zip
+    - build/zip/goad-windows-x86.zip
+  skip_cleanup: true
+  on:
+    tags: true
+    all_branches: true
