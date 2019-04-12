@@ -4,6 +4,7 @@ import (
 	"math"
 	"sort"
 	"time"
+	"sync"
 
 	"github.com/goadapp/goad/api"
 	"github.com/goadapp/goad/goad/util"
@@ -31,6 +32,7 @@ type AggData struct {
 // LambdaResults type
 type LambdaResults struct {
 	Lambdas []AggData
+	sync.RWMutex
 }
 
 // Regions the LambdaResults were collected from
