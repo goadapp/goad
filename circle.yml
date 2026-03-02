@@ -1,0 +1,6 @@
+dependencies:
+  override:
+    - make
+machine:
+  environment:
+    GO15VENDOREXPERIMENT: 1
